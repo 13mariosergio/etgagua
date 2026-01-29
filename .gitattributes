@@ -1,0 +1,25 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Scripts shell devem usar LF
+*.sh text eol=lf
+
+# Scripts PowerShell devem usar CRLF
+*.ps1 text eol=crlf
+
+# JavaScript/JSON/CSS sempre LF
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+
+# Binários
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.sqlite binary
+*.db binary

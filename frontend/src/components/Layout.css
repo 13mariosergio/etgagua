@@ -1,0 +1,223 @@
+/* Layout estilo APP (mobile-first) */
+* { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  margin: 0;
+}
+
+/* evita “fundo gigante” por causa de altura errada em algum lugar */
+body {
+  min-height: 100dvh;
+}
+
+.app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* ===== HEADER ===== */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50; /* acima do conteúdo */
+  backdrop-filter: blur(10px);
+  background: rgba(0,0,0,0.55);
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  padding: 12px 12px calc(12px + env(safe-area-inset-top));
+}
+
+.app-header-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 18px;
+  letter-spacing: 0.02em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.userline {
+  opacity: 0.85;
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== MAIN ===== */
+.app-main{
+  flex: 1;
+  padding: 12px;
+  max-width: 980px;
+  width: 100%;
+  margin: 0 auto;
+
+  /* ✅ IMPORTANTE: isso TEM que bater com a altura da bottom-nav */
+  padding-bottom: calc(56px + env(safe-area-inset-bottom) + 14px);
+
+  overflow-x: hidden;
+}
+
+/* ===== NAV ===== */
+.nav {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* Links do app */
+.app-link{
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  font-weight: 900;
+  text-decoration: none;
+  line-height: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-link:hover{
+  background: rgba(255,255,255,0.10);
+}
+
+.app-link.active{
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.22);
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+.btn {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.92);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: rgba(255,255,255,0.14);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ===== BOTTOM NAV (mobile) ===== */
+.bottom-nav{
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+
+  /* ✅ tem que ficar acima do conteúdo */
+  z-index: 60;
+
+  background: rgba(0,0,0,0.85);
+  border-top: 1px solid rgba(255,255,255,0.10);
+
+  height: 56px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  display: none;
+
+  overflow: hidden;
+}
+
+/* container da nav no rodapé */
+.bottom-nav .nav{
+  width: 100%;
+  height: 100%;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;   /* ✅ nunca quebrar linha */
+  min-width: 0;
+}
+
+/* links dentro do rodapé */
+.bottom-nav .app-link{
+  flex: 1;
+  text-align: center;
+  padding: 10px 6px;
+  border-radius: 12px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Mobile */
+@media (max-width: 720px) {
+  .app-main {
+    max-width: 100%;
+    margin: 0;
+  }
+
+  /* no celular: esconder menu do topo e usar barra inferior */
+  .top-nav {
+    display: none;
+  }
+
+  .bottom-nav {
+    display: block;
+  }
+}
+
+/* Abreviações no mobile (ADMIN) */
+@media (max-width: 720px){
+  .bottom-nav .app-link:nth-child(1)::after{ content:"Admin"; }
+  .bottom-nav .app-link:nth-child(1){ font-size: 0; }
+  .bottom-nav .app-link:nth-child(1)::after{ font-size: 12px; }
+
+  .bottom-nav .app-link:nth-child(2)::after{ content:"Atend."; }
+  .bottom-nav .app-link:nth-child(2){ font-size: 0; }
+  .bottom-nav .app-link:nth-child(2)::after{ font-size: 12px; }
+
+  .bottom-nav .app-link:nth-child(3)::after{ content:"Entreg."; }
+  .bottom-nav .app-link:nth-child(3){ font-size: 0; }
+  .bottom-nav .app-link:nth-child(3)::after{ font-size: 12px; }
+
+  .bottom-nav .app-link:nth-child(4)::after{ content:"Relat."; }
+  .bottom-nav .app-link:nth-child(4){ font-size: 0; }
+  .bottom-nav .app-link:nth-child(4)::after{ font-size: 12px; }
+}

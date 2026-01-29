@@ -1,0 +1,171 @@
+/* Tema do Entregador */
+.ent-page {
+  display: grid;
+  gap: 14px;
+}
+
+.ent-title {
+  margin: 0;
+  font-size: 22px;
+}
+
+.ent-sub {
+  margin-top: -6px;
+  opacity: 0.75;
+}
+
+/* Caixa principal (onde fica Pedidos) */
+.ent-box {
+  padding: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+}
+
+/* Cabeçalho da lista */
+.ent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.ent-h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+/* Filtros */
+.ent-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.ent-chip {
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ent-chip:hover {
+  background: rgba(255,255,255,0.10);
+}
+
+.ent-chip.active {
+  background: #ffffff;
+  color: #0c0b0b;
+  border-color: #ffffff;
+}
+
+/* Botão atualizar */
+.ent-btn {
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.92);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ent-btn:hover {
+  background: rgba(255,255,255,0.14);
+}
+
+.ent-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Lista e cards */
+.ent-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.ent-card {
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.20);
+  display: grid;
+  gap: 10px;
+}
+
+.ent-row {
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.ent-left {
+  display: grid;
+  gap: 6px;
+  min-width: 260px;
+}
+
+.ent-id {
+  font-weight: 800;
+}
+
+.ent-muted {
+  opacity: 0.78;
+}
+
+.ent-mini {
+  opacity: 0.65;
+  font-size: 12px;
+}
+
+/* Select status */
+.ent-right {
+  min-width: 220px;
+  display: grid;
+  gap: 6px;
+}
+
+.ent-label {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.ent-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgb(58, 55, 55);
+  color: rgb(249, 249, 250);
+  outline: none;
+}
+
+.ent-hint {
+  font-size: 12px;
+  opacity: 0.65;
+}
+
+/* Destaques de status */
+.badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.08);
+}
+
+.badge.aberto { }
+.badge.emrota { }
+.badge.entregue { }
+.badge.cancelado { }
