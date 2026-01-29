@@ -10,6 +10,7 @@
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "build:frontend": "npm run build --prefix frontend",
     "start:backend": "npm start --prefix backend"
+    
   },
   "keywords": ["delivery", "water", "sistema"],
   "author": "",
