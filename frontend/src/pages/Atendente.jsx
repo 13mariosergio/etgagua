@@ -239,18 +239,18 @@ export default function Atendente() {
   </div>
   {formaPagamento === "DINHEIRO" && trocoParaCentavos > 0 && (
     <>
-    <div style={{ opacity: 0.85, fontSize: 16, marginTop: 8 }}>
-                    Troco para: <span style={{ color: '#3b82f6' }}>R$ {(trocoParaCentavos / 100).toFixed(2)}</span>
-                  </div>
-                  <div style={{ opacity: 0.85, fontSize: 18, fontWeight: 'bold', marginTop: 4 }}>
-                    Troco: <span style={{ color: '#f59e0b' }}>R$ {(trocoPreviewCentavos / 100).toFixed(2)}</span>
-                  </div>
-                </>
-              )}
-              <div style={{ opacity: 0.75, marginTop: 8, fontSize: 12 }}>
-                Pagamento: <b>{formaPagamento === "DINHEIRO" ? "Dinheiro" : formaPagamento === "PIX" ? "Pix" : "Cartão"}</b>
+      <div style={{ opacity: 0.85, fontSize: 16, marginTop: 8 }}>
+                Troco para: <span style={{ color: '#3b82f6' }}>R$ {(trocoParaCentavos / 100).toFixed(2)}</span>
               </div>
-            </div>
+              <div style={{ opacity: 0.85, fontSize: 18, fontWeight: 'bold', marginTop: 4 }}>
+                Troco: <span style={{ color: '#f59e0b' }}>R$ {(trocoPreviewCentavos / 100).toFixed(2)}</span>
+              </div>
+            </>
+          )}
+          <div style={{ opacity: 0.75, marginTop: 8, fontSize: 12 }}>
+            Pagamento: <b>{formaPagamento === "DINHEIRO" ? "Dinheiro" : formaPagamento === "PIX" ? "Pix" : "Cartão"}</b>
+          </div>
+        </div>
           </div>
 
           <button type="submit" disabled={salvando} className="btn" style={{ justifySelf: "start" }}>
