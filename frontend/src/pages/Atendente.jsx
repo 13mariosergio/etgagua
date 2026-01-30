@@ -92,45 +92,67 @@ export default function Atendente() {
   }
 
   async function criarPedido(e) {
-    e.preventDefault();
+  e.preventDefault();
 
-    if (!clienteNome || !endereco) return alert("Nome e endereço são obrigatórios.");
-    if (!itens.length) return alert("Adicione pelo menos 1 item.");
+  if (!clienteNome || !endereco) return alert("Nome e endereço são obrigatórios.");
+  if (!itens.length) return alert("Adicione pelo menos 1 item.");
 
-    const tpc = trocoParaCentavos;
-    if (formaPagamento === "DINHEIRO" && tpc !== null && tpc < totalPreviewCentavos) {
-      return alert("Troco pra quanto deve ser maior ou igual ao total.");
-    }
-
-    setSalvando(true);
-    try {
-      await api.post("/pedidos", {
-        clienteNome,
-        telefone,
-        endereco,
-        observacao,
-        itens,
-        formaPagamento,
-        trocoParaCentavos: tpc,
-      });
-
-      setClienteNome("");
-      setTelefone("");
-      setEndereco("");
-      setObservacao("");
-      setItens([]);
-      setQtd(1);
-      setTrocoPara("");
-      setFormaPagamento("DINHEIRO");
-
-      alert("Pedido criado!");
-    } catch (err) {
-      console.error(err);
-      alert(err?.response?.data?.error || "Erro ao criar pedido.");
-    } finally {
-      setSalvando(false);
-    }
+  const tpc = trocoParaCentavos;
+  if (formaPagamento === "DINHEIRO" && tpc !== null && tpc < totalPreviewCentavos) {
+    return alert("Troco pra quanto deve ser maior ou igual ao total.");
   }
+
+  // Preparar mensagem de confirmação
+  const totalReais = (totalPreviewCentavos / 100).toFixed(2);
+  const trocoReais = (trocoPreviewCentavos / 100).toFixed(2);
+  const trocoParaReais = tpc ? (tpc / 100).toFixed(2) : "0.00";
+
+  let mensagem = `📋 RESUMO DO PEDIDO\n\n`;
+  mensagem += `Cliente: ${clienteNome}\n`;
+  mensagem += `Endereço: ${endereco}\n\n`;
+  mensagem += `💰 VALORES:\n`;
+  mensagem += `Total: R$ ${totalReais}\n`;
+  
+  if (formaPagamento === "DINHEIRO" && tpc) {
+    mensagem += `Troco para: R$ ${trocoParaReais}\n`;
+    mensagem += `Troco: R$ ${trocoReais}\n`;
+  }
+  
+  mensagem += `\nForma de pagamento: ${formaPagamento}\n\n`;
+  mensagem += `Deseja confirmar o pedido?`;
+
+  if (!confirm(mensagem)) return;
+
+  setSalvando(true);
+  try {
+    await api.post("/pedidos", {
+      clienteNome,
+      telefone,
+      endereco,
+      observacao,
+      itens,
+      formaPagamento,
+      trocoParaCentavos: tpc,
+    });
+
+    // Alert de sucesso
+    alert(`✅ PEDIDO CRIADO COM SUCESSO!\n\nTotal: R$ ${totalReais}\n${formaPagamento === "DINHEIRO" && tpc ? `Troco: R$ ${trocoReais}` : ''}`);
+
+    setClienteNome("");
+    setTelefone("");
+    setEndereco("");
+    setObservacao("");
+    setItens([]);
+    setQtd(1);
+    setTrocoPara("");
+    setFormaPagamento("DINHEIRO");
+  } catch (err) {
+    console.error(err);
+    alert("❌ Erro ao criar pedido: " + (err?.response?.data?.error || "Erro desconhecido"));
+  } finally {
+    setSalvando(false);
+  }
+}
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -212,9 +234,20 @@ export default function Atendente() {
             )}
 
             <div style={{ padding: 10, border: "1px solid rgba(255,255,255,0.10)", borderRadius: 10 }}>
-              <div style={{ opacity: 0.85 }}>Total (preview): <b>R$ {centavosToReais(totalPreviewCentavos)}</b></div>
-              <div style={{ opacity: 0.85 }}>Troco (preview): <b>R$ {centavosToReais(trocoPreviewCentavos)}</b></div>
-              <div style={{ opacity: 0.75, marginTop: 4, fontSize: 12 }}>
+  <div style={{ opacity: 0.85, fontSize: 18, fontWeight: 'bold' }}>
+    Total: <span style={{ color: '#10b981' }}>R$ {(totalPreviewCentavos / 100).toFixed(2)}</span>
+  </div>
+  {formaPagamento === "DINHEIRO" && trocoParaCentavos > 0 && (
+    <>
+    <div style={{ opacity: 0.85, fontSize: 16, marginTop: 8 }}>
+                    Troco para: <span style={{ color: '#3b82f6' }}>R$ {(trocoParaCentavos / 100).toFixed(2)}</span>
+                  </div>
+                  <div style={{ opacity: 0.85, fontSize: 18, fontWeight: 'bold', marginTop: 4 }}>
+                    Troco: <span style={{ color: '#f59e0b' }}>R$ {(trocoPreviewCentavos / 100).toFixed(2)}</span>
+                  </div>
+                </>
+              )}
+              <div style={{ opacity: 0.75, marginTop: 8, fontSize: 12 }}>
                 Pagamento: <b>{formaPagamento === "DINHEIRO" ? "Dinheiro" : formaPagamento === "PIX" ? "Pix" : "Cartão"}</b>
               </div>
             </div>
