@@ -31,4 +31,4 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://etgagua-backend.onrender.com
-    plan: free
+    
