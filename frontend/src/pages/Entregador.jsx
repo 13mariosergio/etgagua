@@ -1,5 +1,5 @@
 import Pedidos from "./Pedidos";
-import "./entregador.css";
+import "./Entregador.css";
 
 export default function Entregador() {
   return (
