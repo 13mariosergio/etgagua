@@ -1,0 +1,34 @@
+services:
+  # Backend - API Node.js
+  - type: web
+    name: etgagua-backend
+    runtime: node
+    repo: https://github.com/13mariosergio/etgagua
+    branch: main
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+    plan: free
+
+  # Frontend - React Static Site
+  - type: web
+    name: etgagua-frontend
+    runtime: static
+    repo: https://github.com/13mariosergio/etgagua
+    branch: main
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://etgagua-backend.onrender.com
+    plan: free
