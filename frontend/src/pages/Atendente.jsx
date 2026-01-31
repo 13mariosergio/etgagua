@@ -47,14 +47,29 @@ export default function Atendente() {
   }, []);
 
   const totalPreviewCentavos = useMemo(() => {
-    const map = new Map(produtos.map((p) => [String(p.id), p]));
-    return itens.reduce((acc, it) => {
-      const p = map.get(String(it.produtoId));
-      const unit = p ? Number(p.precoCentavos || 0) : 0;
-      return acc + unit * it.qtd;
-    }, 0);
-  }, [itens, produtos]);
-
+  if (!produtos || produtos.length === 0) return 0;
+  if (!itens || itens.length === 0) return 0;
+  
+  const map = new Map(produtos.map((p) => [Number(p.id), Number(p.id)])); // Chave como Number
+  
+  return itens.reduce((acc, it) => {
+    const produtoId = Number(it.produtoId);
+    const produto = produtos.find(p => Number(p.id) === produtoId);
+    
+    if (!produto) {
+      console.warn(`Produto ${produtoId} não encontrado`);
+      return acc;
+    }
+    
+    const precoUnit = Number(produto.precoCentavos || 0);
+    const quantidade = Number(it.qtd || 0);
+    const subtotal = precoUnit * quantidade;
+    
+    console.log(`[DEBUG] Produto: ${produto.nome}, Preço: ${precoUnit/100}, Qtd: ${quantidade}, Subtotal: ${subtotal/100}`);
+    
+    return acc + subtotal;
+  }, 0);
+}, [itens, produtos]);
   const trocoParaCentavos = useMemo(() => {
     if (formaPagamento !== "DINHEIRO") return null;
     if (!trocoPara) return null;
