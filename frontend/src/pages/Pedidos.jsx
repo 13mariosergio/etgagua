@@ -68,31 +68,37 @@ export default function Pedidos({ modo = "GERAL" }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modo]);
 
-  async function mudarStatus(id, novoStatus) {
-    if (!statusPermitidosNoSelect.includes(novoStatus)) {
-      alert("Ação não permitida para este perfil.");
-      return;
-    }
-
-    try {
-      // otimista
-      setPedidos((prev) => prev.map((p) => (p.id === id ? { ...p, status: novoStatus } : p)));
-
-      const { data } = await api.patch(`/pedidos/${id}/status`, { status: novoStatus });
-      if (!mountedRef.current) return;
-
-      setPedidos((prev) => prev.map((p) => (p.id === id ? data : p)));
-
-      // se o filtro atual for específico e o status mudou pra fora dele, recarrega pra “sumir”
-      if (filtro !== "TODOS" && novoStatus !== filtro) {
-        carregarPedidos(filtro);
-      }
-    } catch (e) {
-      console.error(e);
-      alert("Erro ao atualizar status. Vou recarregar a lista.");
-      carregarPedidos(filtro);
-    }
+ async function mudarStatus(id, novoStatus) {
+  if (!statusPermitidosNoSelect.includes(novoStatus)) {
+    alert("Ação não permitida para este perfil.");
+    return;
   }
+
+  try {
+    // Atualização otimista
+    setPedidos((prev) => prev.map((p) => (p.id === id ? { ...p, status: novoStatus } : p)));
+
+    const { data } = await api.patch(`/pedidos/${id}/status`, { status: novoStatus });
+    
+    if (!mountedRef.current) return;
+
+    // Atualiza com dados do servidor
+    setPedidos((prev) => prev.map((p) => (p.id === id ? data : p)));
+
+    // ✅ NOVO: Recarrega a lista se mudou pra fora do filtro atual
+    if (filtro !== "TODOS" && novoStatus !== filtro) {
+      setTimeout(() => carregarPedidos(filtro), 500);
+    }
+    
+    // ✅ NOVO: Feedback visual
+    alert(`✅ Status alterado para ${novoStatus}`);
+    
+  } catch (e) {
+    console.error(e);
+    alert("❌ Erro ao atualizar status");
+    carregarPedidos(filtro); // Recarrega em caso de erro
+  }
+}
 
   function renderResumoFinanceiro(p, isEntregador = false) {
     const total = Number(p.totalCentavos || 0);
