@@ -43,22 +43,17 @@ export default function Atendente() {
   }, []);
 
   const totalPreviewCentavos = useMemo(() => {
-  let total = 0;
-  
-  for (const item of itens) {
-    const produto = produtos.find(p => Number(p.id) === Number(item.produtoId));
-    if (produto) {
-      total += Number(produto.precoCentavos) * Number(item.qtd);
+    let total = 0;
+    
+    for (const item of itens) {
+      const produto = produtos.find(p => Number(p.id) === Number(item.produtoId));
+      if (produto) {
+        total += Number(produto.precoCentavos) * Number(item.qtd);
+      }
     }
-  }
-  
-  console.log('=== CÁLCULO TOTAL ===');
-  console.log('Itens:', itens);
-  console.log('Total calculado:', total);
-  console.log('Total em R$:', (total / 100).toFixed(2));
-  
-  return total;
-}, [itens, produtos]);
+    
+    return total;
+  }, [itens, produtos]);
 
   const trocoParaCentavos = useMemo(() => {
     if (formaPagamento !== "DINHEIRO") return null;
@@ -262,4 +257,5 @@ export default function Atendente() {
 
       <Pedidos modo="ATENDENTE" />
     </div>
-  );}
+  );
+}
