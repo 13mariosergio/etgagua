@@ -18,20 +18,17 @@ export default function Atendente() {
   const [telefone, setTelefone] = useState("");
   const [endereco, setEndereco] = useState("");
   const [observacao, setObservacao] = useState("");
-
-  const [formaPagamento, setFormaPagamento] = useState("DINHEIRO"); // DINHEIRO | PIX | CARTAO
-
+  const [formaPagamento, setFormaPagamento] = useState("DINHEIRO");
   const [produtos, setProdutos] = useState([]);
   const [produtoId, setProdutoId] = useState("");
   const [qtd, setQtd] = useState(1);
   const [itens, setItens] = useState([]);
-
   const [trocoPara, setTrocoPara] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   async function carregarProdutos() {
     try {
-      const { data } = await api.get("/produtos"); // interceptor injeta token
+      const { data } = await api.get("/produtos");
       const lista = Array.isArray(data) ? data : [];
       setProdutos(lista);
       if (lista.length && !produtoId) setProdutoId(String(lista[0].id));
@@ -43,33 +40,29 @@ export default function Atendente() {
 
   useEffect(() => {
     carregarProdutos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const totalPreviewCentavos = useMemo(() => {
-  if (!produtos || produtos.length === 0) return 0;
-  if (!itens || itens.length === 0) return 0;
-  
-  const map = new Map(produtos.map((p) => [Number(p.id), Number(p.id)])); // Chave como Number
-  
-  return itens.reduce((acc, it) => {
-    const produtoId = Number(it.produtoId);
-    const produto = produtos.find(p => Number(p.id) === produtoId);
-    
-    if (!produto) {
-      console.warn(`Produto ${produtoId} não encontrado`);
-      return acc;
-    }
-    
-    const precoUnit = Number(produto.precoCentavos || 0);
-    const quantidade = Number(it.qtd || 0);
-    const subtotal = precoUnit * quantidade;
-    
-    console.log(`[DEBUG] Produto: ${produto.nome}, Preço: ${precoUnit/100}, Qtd: ${quantidade}, Subtotal: ${subtotal/100}`);
-    
-    return acc + subtotal;
-  }, 0);
-}, [itens, produtos]);
+    if (!produtos || produtos.length === 0) return 0;
+    if (!itens || itens.length === 0) return 0;
+
+    return itens.reduce((acc, it) => {
+      const produtoId = Number(it.produtoId);
+      const produto = produtos.find(p => Number(p.id) === produtoId);
+
+      if (!produto) {
+        console.warn(`Produto ${produtoId} não encontrado`);
+        return acc;
+      }
+
+      const precoUnit = Number(produto.precoCentavos || 0);
+      const quantidade = Number(it.qtd || 0);
+      const subtotal = precoUnit * quantidade;
+
+      return acc + subtotal;
+    }, 0);
+  }, [itens, produtos]);
+
   const trocoParaCentavos = useMemo(() => {
     if (formaPagamento !== "DINHEIRO") return null;
     if (!trocoPara) return null;
@@ -87,100 +80,85 @@ export default function Atendente() {
   }, [formaPagamento]);
 
   function addItem() {
-  if (!produtoId) return;
-  const q = Number(qtd);
-  if (!Number.isInteger(q) || q <= 0) return alert("Quantidade inválida");
+    if (!produtoId) return;
+    const q = Number(qtd);
+    if (!Number.isInteger(q) || q <= 0) return alert("Quantidade inválida");
 
-  console.log('[ADD ITEM] Produto ID:', produtoId, 'Qtd:', q);
-  console.log('[ADD ITEM] Produtos disponíveis:', produtos);
-
-  setItens((prev) => {
-    const idx = prev.findIndex((x) => String(x.produtoId) === String(produtoId));
-    if (idx >= 0) {
-      const cp = [...prev];
-      cp[idx] = { ...cp[idx], qtd: cp[idx].qtd + q };
-      console.log('[ADD ITEM] Item atualizado:', cp);
-      return cp;
-    }
-    const newItens = [...prev, { produtoId: Number(produtoId), qtd: q }];
-    console.log('[ADD ITEM] Novo item adicionado:', newItens);
-    return newItens;
-  });
-}
+    setItens((prev) => {
+      const idx = prev.findIndex((x) => Number(x.produtoId) === Number(produtoId));
+      if (idx >= 0) {
+        const cp = [...prev];
+        cp[idx] = { ...cp[idx], qtd: cp[idx].qtd + q };
+        return cp;
+      }
+      return [...prev, { produtoId: Number(produtoId), qtd: q }];
+    });
   }
-  useEffect(() => {
-  console.log('[MONITORAMENTO]');
-  console.log('- Produtos:', produtos.length);
-  console.log('- Itens:', itens);
-  console.log('- Total (centavos):', totalPreviewCentavos);
-  console.log('- Total (reais):', (totalPreviewCentavos / 100).toFixed(2));
-}, [produtos, itens, totalPreviewCentavos]);
+
   function removerItem(pid) {
     setItens((prev) => prev.filter((x) => x.produtoId !== pid));
   }
 
   async function criarPedido(e) {
-  e.preventDefault();
+    e.preventDefault();
 
-  if (!clienteNome || !endereco) return alert("Nome e endereço são obrigatórios.");
-  if (!itens.length) return alert("Adicione pelo menos 1 item.");
+    if (!clienteNome || !endereco) return alert("Nome e endereço são obrigatórios.");
+    if (!itens.length) return alert("Adicione pelo menos 1 item.");
 
-  const tpc = trocoParaCentavos;
-  if (formaPagamento === "DINHEIRO" && tpc !== null && tpc < totalPreviewCentavos) {
-    return alert("Troco pra quanto deve ser maior ou igual ao total.");
+    const tpc = trocoParaCentavos;
+    if (formaPagamento === "DINHEIRO" && tpc !== null && tpc < totalPreviewCentavos) {
+      return alert("Troco pra quanto deve ser maior ou igual ao total.");
+    }
+
+    const totalReais = (totalPreviewCentavos / 100).toFixed(2);
+    const trocoReais = (trocoPreviewCentavos / 100).toFixed(2);
+    const trocoParaReais = tpc ? (tpc / 100).toFixed(2) : "0.00";
+
+    let mensagem = `📋 RESUMO DO PEDIDO\n\n`;
+    mensagem += `Cliente: ${clienteNome}\n`;
+    mensagem += `Endereço: ${endereco}\n\n`;
+    mensagem += `💰 VALORES:\n`;
+    mensagem += `Total: R$ ${totalReais}\n`;
+
+    if (formaPagamento === "DINHEIRO" && tpc) {
+      mensagem += `Troco para: R$ ${trocoParaReais}\n`;
+      mensagem += `Troco: R$ ${trocoReais}\n`;
+    }
+
+    mensagem += `\nForma de pagamento: ${formaPagamento}\n\n`;
+    mensagem += `Deseja confirmar o pedido?`;
+
+    if (!confirm(mensagem)) return;
+
+    setSalvando(true);
+    try {
+      await api.post("/pedidos", {
+        clienteNome,
+        telefone,
+        endereco,
+        observacao,
+        itens,
+        formaPagamento,
+        trocoParaCentavos: tpc,
+      });
+
+      alert(`✅ PEDIDO CRIADO!\n\nTotal: R$ ${totalReais}${formaPagamento === "DINHEIRO" && tpc ? `\nTroco: R$ ${trocoReais}` : ''}`);
+
+      setClienteNome("");
+      setTelefone("");
+      setEndereco("");
+      setObservacao("");
+      setItens([]);
+      setQtd(1);
+      setTrocoPara("");
+      setFormaPagamento("DINHEIRO");
+    } catch (err) {
+      console.error(err);
+      alert("❌ Erro: " + (err?.response?.data?.error || "Erro desconhecido"));
+    } finally {
+      setSalvando(false);
+    }
   }
-
-  // Preparar mensagem de confirmação
-  const totalReais = (totalPreviewCentavos / 100).toFixed(2);
-  const trocoReais = (trocoPreviewCentavos / 100).toFixed(2);
-  const trocoParaReais = tpc ? (tpc / 100).toFixed(2) : "0.00";
-
-  let mensagem = `📋 RESUMO DO PEDIDO\n\n`;
-  mensagem += `Cliente: ${clienteNome}\n`;
-  mensagem += `Endereço: ${endereco}\n\n`;
-  mensagem += `💰 VALORES:\n`;
-  mensagem += `Total: R$ ${totalReais}\n`;
-  
-  if (formaPagamento === "DINHEIRO" && tpc) {
-    mensagem += `Troco para: R$ ${trocoParaReais}\n`;
-    mensagem += `Troco: R$ ${trocoReais}\n`;
-  }
-  
-  mensagem += `\nForma de pagamento: ${formaPagamento}\n\n`;
-  mensagem += `Deseja confirmar o pedido?`;
-
-  if (!confirm(mensagem)) return;
-
-  setSalvando(true);
-  try {
-    await api.post("/pedidos", {
-      clienteNome,
-      telefone,
-      endereco,
-      observacao,
-      itens,
-      formaPagamento,
-      trocoParaCentavos: tpc,
-    });
-
-    // Alert de sucesso
-    alert(`✅ PEDIDO CRIADO COM SUCESSO!\n\nTotal: R$ ${totalReais}\n${formaPagamento === "DINHEIRO" && tpc ? `Troco: R$ ${trocoReais}` : ''}`);
-
-    setClienteNome("");
-    setTelefone("");
-    setEndereco("");
-    setObservacao("");
-    setItens([]);
-    setQtd(1);
-    setTrocoPara("");
-    setFormaPagamento("DINHEIRO");
-  } catch (err) {
-    console.error(err);
-    alert("❌ Erro ao criar pedido: " + (err?.response?.data?.error || "Erro desconhecido"));
-  } finally {
-    setSalvando(false);
-  }
-}
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -225,69 +203,66 @@ export default function Atendente() {
             </div>
 
             <button type="button" onClick={addItem} className="btn">Adicionar item</button>
-            <button type="button" onClick={carregarProdutos} className="btn">Atualizar produtos</button>
+            <button type="button" onClick={carregarProdutos} className="btn secondary">Atualizar produtos</button>
           </div>
 
-          {itens.length ? (
+          {itens.length > 0 && (
             <div style={{ marginTop: 8, padding: 12, border: "1px solid rgba(255,255,255,0.10)", borderRadius: 10 }}>
               <b>Itens</b>
               <div style={{ display: "grid", gap: 6, marginTop: 8 }}>
                 {itens.map((it) => {
-                  const p = produtos.find((x) => x.id === it.produtoId);
+                  const p = produtos.find((x) => Number(x.id) === Number(it.produtoId));
                   const nomeP = p ? p.nome : `Produto #${it.produtoId}`;
                   const unit = p ? p.precoCentavos : 0;
                   const sub = unit * it.qtd;
 
                   return (
-                    <div key={it.produtoId} style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                    <div key={it.produtoId} style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                       <span>
-                        {it.qtd}x {nomeP} (R$ {centavosToReais(unit)} un) — <b>R$ {centavosToReais(sub)}</b>
+                        {it.qtd}x {nomeP} (R$ {centavosToReais(unit)} un) — <b style={{ color: '#10b981' }}>R$ {centavosToReais(sub)}</b>
                       </span>
-                      <button type="button" onClick={() => removerItem(it.produtoId)} className="btn">Remover</button>
+                      <button type="button" onClick={() => removerItem(it.produtoId)} className="btn danger" style={{ padding: '8px 16px' }}>Remover</button>
                     </div>
                   );
                 })}
               </div>
             </div>
-          ) : null}
+          )}
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "end" }}>
-            {formaPagamento === "DINHEIRO" ? (
+            {formaPagamento === "DINHEIRO" && (
               <div style={{ display: "grid", gap: 6 }}>
                 <label style={{ fontSize: 12, opacity: 0.7 }}>Troco pra quanto? (R$)</label>
                 <input value={trocoPara} onChange={(e) => setTrocoPara(e.target.value)} placeholder="Ex: 50,00" style={{ padding: 8, width: 160 }} />
               </div>
-            ) : (
-              <div style={{ opacity: 0.7, fontSize: 12 }}>Troco apenas para <b>Dinheiro</b>.</div>
             )}
 
-            <div style={{ padding: 10, border: "1px solid rgba(255,255,255,0.10)", borderRadius: 10 }}>
-  <div style={{ opacity: 0.85, fontSize: 18, fontWeight: 'bold' }}>
-    Total: <span style={{ color: '#10b981' }}>R$ {(totalPreviewCentavos / 100).toFixed(2)}</span>
-  </div>
-  {formaPagamento === "DINHEIRO" && trocoParaCentavos > 0 && (
-    <>
-      <div style={{ opacity: 0.85, fontSize: 16, marginTop: 8 }}>
-                Troco para: <span style={{ color: '#3b82f6' }}>R$ {(trocoParaCentavos / 100).toFixed(2)}</span>
+            <div style={{ padding: 16, border: "2px solid rgba(59, 130, 246, 0.3)", borderRadius: 12, backgroundColor: 'rgba(59, 130, 246, 0.05)' }}>
+              <div style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 8 }}>
+                Total: <span style={{ color: '#10b981' }}>R$ {(totalPreviewCentavos / 100).toFixed(2)}</span>
               </div>
-              <div style={{ opacity: 0.85, fontSize: 18, fontWeight: 'bold', marginTop: 4 }}>
-                Troco: <span style={{ color: '#f59e0b' }}>R$ {(trocoPreviewCentavos / 100).toFixed(2)}</span>
+              {formaPagamento === "DINHEIRO" && trocoParaCentavos > 0 && (
+                <>
+                  <div style={{ fontSize: 16, marginTop: 6 }}>
+                    Troco para: <span style={{ color: '#3b82f6', fontWeight: 600 }}>R$ {(trocoParaCentavos / 100).toFixed(2)}</span>
+                  </div>
+                  <div style={{ fontSize: 18, fontWeight: 'bold', marginTop: 4 }}>
+                    Troco: <span style={{ color: '#f59e0b' }}>R$ {(trocoPreviewCentavos / 100).toFixed(2)}</span>
+                  </div>
+                </>
+              )}
+              <div style={{ opacity: 0.75, marginTop: 10, fontSize: 14, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 8 }}>
+                💳 <b>{formaPagamento === "DINHEIRO" ? "Dinheiro" : formaPagamento === "PIX" ? "Pix" : "Cartão"}</b>
               </div>
-            </>
-          )}
-          <div style={{ opacity: 0.75, marginTop: 8, fontSize: 12 }}>
-            Pagamento: <b>{formaPagamento === "DINHEIRO" ? "Dinheiro" : formaPagamento === "PIX" ? "Pix" : "Cartão"}</b>
-          </div>
-        </div>
+            </div>
           </div>
 
-          <button type="submit" disabled={salvando} className="btn" style={{ justifySelf: "start" }}>
-            {salvando ? "Salvando..." : "Criar pedido"}
+          <button type="submit" disabled={salvando} className="btn success" style={{ justifySelf: "start", fontSize: 18, padding: '14px 28px' }}>
+            {salvando ? "⏳ Salvando..." : "✅ Criar pedido"}
           </button>
         </form>
       </div>
 
       <Pedidos modo="ATENDENTE" />
     </div>
-  );
-}
+  );}
