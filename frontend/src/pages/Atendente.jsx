@@ -87,21 +87,34 @@ export default function Atendente() {
   }, [formaPagamento]);
 
   function addItem() {
-    if (!produtoId) return;
-    const q = Number(qtd);
-    if (!Number.isInteger(q) || q <= 0) return alert("Quantidade inválida");
+  if (!produtoId) return;
+  const q = Number(qtd);
+  if (!Number.isInteger(q) || q <= 0) return alert("Quantidade inválida");
 
-    setItens((prev) => {
-      const idx = prev.findIndex((x) => String(x.produtoId) === String(produtoId));
-      if (idx >= 0) {
-        const cp = [...prev];
-        cp[idx] = { ...cp[idx], qtd: cp[idx].qtd + q };
-        return cp;
-      }
-      return [...prev, { produtoId: Number(produtoId), qtd: q }];
-    });
+  console.log('[ADD ITEM] Produto ID:', produtoId, 'Qtd:', q);
+  console.log('[ADD ITEM] Produtos disponíveis:', produtos);
+
+  setItens((prev) => {
+    const idx = prev.findIndex((x) => String(x.produtoId) === String(produtoId));
+    if (idx >= 0) {
+      const cp = [...prev];
+      cp[idx] = { ...cp[idx], qtd: cp[idx].qtd + q };
+      console.log('[ADD ITEM] Item atualizado:', cp);
+      return cp;
+    }
+    const newItens = [...prev, { produtoId: Number(produtoId), qtd: q }];
+    console.log('[ADD ITEM] Novo item adicionado:', newItens);
+    return newItens;
+  });
+}
   }
-
+  useEffect(() => {
+  console.log('[MONITORAMENTO]');
+  console.log('- Produtos:', produtos.length);
+  console.log('- Itens:', itens);
+  console.log('- Total (centavos):', totalPreviewCentavos);
+  console.log('- Total (reais):', (totalPreviewCentavos / 100).toFixed(2));
+}, [produtos, itens, totalPreviewCentavos]);
   function removerItem(pid) {
     setItens((prev) => prev.filter((x) => x.produtoId !== pid));
   }
