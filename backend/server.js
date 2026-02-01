@@ -5,20 +5,23 @@ const cors = require("cors");
 const bcrypt = require("bcrypt");
 const { signToken, requireAuth, requireRole } = require("./auth");
 const { initDB, getDB } = require("./db-postgres");
-const relatoriosRoutes = require("./relatorios"); // ✅ aqui em cima
+const relatoriosRoutes = require("./relatorios");
 
 const app = express();
 
-// Configurações via variáveis de ambiente
 const PORT = process.env.PORT || 3333;
-const HOST = process.env.HOST || "0.0.0.0"; // 0.0.0.0 permite acesso de qualquer IP na rede
+const HOST = process.env.HOST || "0.0.0.0";
 
 app.use(cors());
 app.use(express.json());
 
-// =======================
-// Health check (raiz e /health)
-// =======================
+// Inicializar banco
+initDB().catch(err => {
+  console.error('Erro fatal ao inicializar DB:', err);
+  process.exit(1);
+});
+
+// Health check
 app.get("/", (req, res) => {
   res.json({ ok: true, name: "ETGÁGUA Backend", time: new Date().toISOString() });
 });
@@ -27,68 +30,64 @@ app.get("/health", (req, res) => {
   res.json({ ok: true, name: "ETGÁGUA Backend", time: new Date().toISOString() });
 });
 
-// =======================
-// Relatórios (ADMIN) - protegido por token
-// relatorios.js já valida ADMIN
-// =======================
+// Relatórios
 app.use("/relatorios", requireAuth, relatoriosRoutes);
 
-// =======================
-// Produtos ativos (para montar pedidos)
-// =======================
-app.get("/produtos", requireAuth, (req, res) => {
-  db.all(
-    "SELECT id, nome, volumeMl, tipo, precoCentavos FROM produtos WHERE ativo = 1 ORDER BY id DESC",
-    [],
-    (err, rows) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json(rows);
-    }
-  );
+// Produtos ativos
+app.get("/produtos", requireAuth, async (req, res) => {
+  try {
+    const db = getDB();
+    const result = await db.query(
+      "SELECT id, nome, precoCentavos FROM produtos ORDER BY id DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// =======================
 // Login
-// =======================
-app.post("/auth/login", (req, res) => {
+app.post("/auth/login", async (req, res) => {
   const { username, password } = req.body || {};
 
   if (!username || !password) {
     return res.status(400).json({ error: "username e password são obrigatórios" });
   }
 
-  db.get(
-    "SELECT id, username, passwordHash, role, ativo FROM users WHERE username = ?",
-    [username],
-    async (err, user) => {
-      if (err) return res.status(500).json({ error: err.message });
-      if (!user) return res.status(401).json({ error: "Usuário ou senha inválidos" });
-      if (user.ativo !== 1) return res.status(403).json({ error: "Usuário inativo" });
+  try {
+    const db = getDB();
+    const result = await db.query(
+      "SELECT id, username, passwordHash, role FROM users WHERE username = $1",
+      [username]
+    );
 
-      const ok = await bcrypt.compare(password, user.passwordHash);
-      if (!ok) return res.status(401).json({ error: "Usuário ou senha inválidos" });
+    const user = result.rows[0];
+    if (!user) return res.status(401).json({ error: "Usuário ou senha inválidos" });
 
-      const token = signToken(user);
-      res.json({
-        token,
-        user: { id: user.id, username: user.username, role: user.role },
-      });
-    }
-  );
+    const ok = await bcrypt.compare(password, user.passwordhash);
+    if (!ok) return res.status(401).json({ error: "Usuário ou senha inválidos" });
+
+    const token = signToken(user);
+    res.json({
+      token,
+      user: { id: user.id, username: user.username, role: user.role },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// =======================
 // Admin - Users
-// =======================
-app.get("/admin/users", requireAuth, requireRole("ADMIN"), (req, res) => {
-  db.all(
-    "SELECT id, username, role, ativo, criadoEm FROM users ORDER BY id DESC",
-    [],
-    (err, rows) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json(rows);
-    }
-  );
+app.get("/admin/users", requireAuth, requireRole("ADMIN"), async (req, res) => {
+  try {
+    const db = getDB();
+    const result = await db.query(
+      "SELECT id, username, role FROM users ORDER BY id DESC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post("/admin/users", requireAuth, requireRole("ADMIN"), async (req, res) => {
@@ -102,199 +101,124 @@ app.post("/admin/users", requireAuth, requireRole("ADMIN"), async (req, res) => 
     return res.status(400).json({ error: "role inválido" });
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  try {
+    const passwordHash = await bcrypt.hash(password, 10);
+    const db = getDB();
+    
+    const result = await db.query(
+      "INSERT INTO users (username, passwordHash, role) VALUES ($1, $2, $3) RETURNING *",
+      [username, passwordHash, role]
+    );
 
-  db.run(
-    "INSERT INTO users (username, passwordHash, role) VALUES (?, ?, ?)",
-    [username, passwordHash, role],
-    function (err) {
-      if (err) {
-        if (String(err.message || "").includes("UNIQUE")) {
-          return res.status(409).json({ error: "username já existe" });
-        }
-        return res.status(500).json({ error: err.message });
-      }
-
-      db.get(
-        "SELECT id, username, role, ativo, criadoEm FROM users WHERE id = ?",
-        [this.lastID],
-        (err2, row) => {
-          if (err2) return res.status(500).json({ error: err2.message });
-          res.status(201).json(row);
-        }
-      );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    if (err.code === '23505') { // Unique violation
+      return res.status(409).json({ error: "username já existe" });
     }
-  );
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// =======================
 // Admin - Produtos
-// =======================
-app.get("/admin/produtos", requireAuth, requireRole("ADMIN"), (req, res) => {
-  db.all("SELECT * FROM produtos ORDER BY id DESC", [], (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
-  });
+app.get("/admin/produtos", requireAuth, requireRole("ADMIN"), async (req, res) => {
+  try {
+    const db = getDB();
+    const result = await db.query("SELECT * FROM produtos ORDER BY id DESC");
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post("/admin/produtos", requireAuth, requireRole("ADMIN"), (req, res) => {
-  const { nome, volumeMl, tipo, precoCentavos, ativo } = req.body || {};
+app.post("/admin/produtos", requireAuth, requireRole("ADMIN"), async (req, res) => {
+  const { nome, precoCentavos } = req.body || {};
 
   if (!nome) return res.status(400).json({ error: "nome é obrigatório" });
 
-  const tipoFinal = tipo || "AGUA";
   let precoFinal = Number(precoCentavos);
   if (!Number.isFinite(precoFinal)) precoFinal = 0;
   if (!Number.isInteger(precoFinal)) precoFinal = Math.round(precoFinal);
   if (precoFinal < 0) return res.status(400).json({ error: "precoCentavos não pode ser negativo" });
 
-  const volFinal = volumeMl === null || volumeMl === undefined || volumeMl === "" ? null : Number(volumeMl);
-  const ativoFinal = ativo === 0 ? 0 : 1;
-
-  db.run(
-    "INSERT INTO produtos (nome, volumeMl, tipo, precoCentavos, ativo) VALUES (?, ?, ?, ?, ?)",
-    [nome, volFinal, tipoFinal, precoFinal, ativoFinal],
-    function (err) {
-      if (err) return res.status(500).json({ error: err.message });
-
-      db.get("SELECT * FROM produtos WHERE id = ?", [this.lastID], (err2, row) => {
-        if (err2) return res.status(500).json({ error: err2.message });
-        res.status(201).json(row);
-      });
-    }
-  );
+  try {
+    const db = getDB();
+    const result = await db.query(
+      "INSERT INTO produtos (nome, precoCentavos) VALUES ($1, $2) RETURNING *",
+      [nome, precoFinal]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.patch("/admin/produtos/:id", requireAuth, requireRole("ADMIN"), (req, res) => {
+app.patch("/admin/produtos/:id", requireAuth, requireRole("ADMIN"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "id inválido" });
 
-  const { nome, volumeMl, tipo, precoCentavos, ativo } = req.body || {};
+  const { nome, precoCentavos } = req.body || {};
 
-  db.get("SELECT * FROM produtos WHERE id = ?", [id], (err, atual) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!atual) return res.status(404).json({ error: "Produto não encontrado" });
+  try {
+    const db = getDB();
+    
+    const atual = await db.query("SELECT * FROM produtos WHERE id = $1", [id]);
+    if (atual.rows.length === 0) return res.status(404).json({ error: "Produto não encontrado" });
 
-    const nomeFinal = nome ?? atual.nome;
-    const tipoFinal = tipo ?? atual.tipo;
-
-    const volFinal =
-      volumeMl === undefined ? atual.volumeMl : (volumeMl === null || volumeMl === "" ? null : Number(volumeMl));
-
-    let precoFinal =
-      precoCentavos === undefined ? atual.precoCentavos : Number(precoCentavos);
-    if (!Number.isFinite(precoFinal)) precoFinal = atual.precoCentavos;
+    const nomeFinal = nome ?? atual.rows[0].nome;
+    let precoFinal = precoCentavos === undefined ? atual.rows[0].precocentavos : Number(precoCentavos);
+    
+    if (!Number.isFinite(precoFinal)) precoFinal = atual.rows[0].precocentavos;
     if (!Number.isInteger(precoFinal)) precoFinal = Math.round(precoFinal);
     if (precoFinal < 0) return res.status(400).json({ error: "precoCentavos não pode ser negativo" });
 
-    const ativoFinal = ativo === undefined ? atual.ativo : (ativo ? 1 : 0);
-
-    db.run(
-      "UPDATE produtos SET nome = ?, volumeMl = ?, tipo = ?, precoCentavos = ?, ativo = ? WHERE id = ?",
-      [nomeFinal, volFinal, tipoFinal, precoFinal, ativoFinal, id],
-      function (err2) {
-        if (err2) return res.status(500).json({ error: err2.message });
-
-        db.get("SELECT * FROM produtos WHERE id = ?", [id], (err3, row) => {
-          if (err3) return res.status(500).json({ error: err3.message });
-          res.json(row);
-        });
-      }
+    const result = await db.query(
+      "UPDATE produtos SET nome = $1, precoCentavos = $2 WHERE id = $3 RETURNING *",
+      [nomeFinal, precoFinal, id]
     );
-  });
+    
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// =======================
-// Seed: admin e produtos padrão (1º uso)
-// =======================
-(async () => {
-  db.get("SELECT COUNT(*) as total FROM users", [], async (err, row) => {
-    if (err) return console.error("Erro ao contar users:", err.message);
-
-    if (row.total === 0) {
-      const username = "admin";
-      const password = "admin123";
-      const passwordHash = await bcrypt.hash(password, 10);
-
-      db.run(
-        "INSERT INTO users (username, passwordHash, role) VALUES (?, ?, ?)",
-        [username, passwordHash, "ADMIN"],
-        (err2) => {
-          if (err2) return console.error("Erro ao criar admin padrão:", err2.message);
-          console.log("✅ Admin padrão criado: user=admin senha=admin123 (trocar depois)");
-        }
-      );
-    }
-  });
-
-  db.get("SELECT COUNT(*) as total FROM produtos", [], (err, row) => {
-    if (err) return console.error("Erro ao contar produtos:", err.message);
-
-    if (row.total === 0) {
-      const padrao = [
-        { nome: "Galão 20L (água)", volumeMl: 20000, tipo: "AGUA", precoCentavos: 0 },
-        { nome: "Vasilhame 20L (vazio)", volumeMl: 20000, tipo: "VASILHAME", precoCentavos: 0 },
-        { nome: "Vasilhame 20L + água", volumeMl: 20000, tipo: "COMBO", precoCentavos: 0 },
-        { nome: "Água 1,5L", volumeMl: 1500, tipo: "AGUA", precoCentavos: 0 },
-        { nome: "Água 500ml", volumeMl: 500, tipo: "AGUA", precoCentavos: 0 },
-        { nome: "Água 5L", volumeMl: 5000, tipo: "AGUA", precoCentavos: 0 },
-      ];
-
-      padrao.forEach((p) => {
-        db.run(
-          "INSERT INTO produtos (nome, volumeMl, tipo, precoCentavos) VALUES (?, ?, ?, ?)",
-          [p.nome, p.volumeMl, p.tipo, p.precoCentavos]
-        );
-      });
-
-      console.log("✅ Produtos padrão criados (com preço 0; ajustar no Admin).");
-    }
-  });
-})();
-
-// =======================
 // Pedidos (listar com itens)
-// =======================
-app.get("/pedidos", requireAuth, (req, res) => {
+app.get("/pedidos", requireAuth, async (req, res) => {
   const { status } = req.query;
 
-  const sql = status
-    ? "SELECT * FROM pedidos WHERE status = ? ORDER BY id DESC"
-    : "SELECT * FROM pedidos ORDER BY id DESC";
+  try {
+    const db = getDB();
+    
+    let pedidos;
+    if (status) {
+      pedidos = await db.query("SELECT * FROM pedidos WHERE status = $1 ORDER BY id DESC", [status]);
+    } else {
+      pedidos = await db.query("SELECT * FROM pedidos ORDER BY id DESC");
+    }
 
-  const params = status ? [status] : [];
+    if (pedidos.rows.length === 0) return res.json([]);
 
-  db.all(sql, params, (err, pedidos) => {
-    if (err) return res.status(500).json({ error: err.message });
-    if (!pedidos || pedidos.length === 0) return res.json([]);
-
-    const ids = pedidos.map((p) => p.id);
-    const placeholders = ids.map(() => "?").join(",");
-
-    db.all(
-      `SELECT * FROM pedido_itens WHERE pedidoId IN (${placeholders}) ORDER BY id ASC`,
-      ids,
-      (err2, itens) => {
-        if (err2) return res.status(500).json({ error: err2.message });
-
-        const map = new Map();
-        for (const it of itens) {
-          if (!map.has(it.pedidoId)) map.set(it.pedidoId, []);
-          map.get(it.pedidoId).push(it);
-        }
-
-        const out = pedidos.map((p) => ({ ...p, itens: map.get(p.id) || [] }));
-        res.json(out);
-      }
+    const ids = pedidos.rows.map(p => p.id);
+    const itens = await db.query(
+      "SELECT * FROM pedido_itens WHERE pedidoId = ANY($1) ORDER BY id ASC",
+      [ids]
     );
-  });
+
+    const map = new Map();
+    for (const it of itens.rows) {
+      if (!map.has(it.pedidoid)) map.set(it.pedidoid, []);
+      map.get(it.pedidoid).push(it);
+    }
+
+    const out = pedidos.rows.map(p => ({ ...p, itens: map.get(p.id) || [] }));
+    res.json(out);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// =======================
-// Criar pedido com itens + troco
-// =======================
-// Criar pedido com itens + troco + formaPagamento
-app.post("/pedidos", requireAuth, (req, res) => {
+// Criar pedido
+app.post("/pedidos", requireAuth, async (req, res) => {
   const { clienteNome, telefone, endereco, observacao, itens, trocoParaCentavos, formaPagamento } = req.body || {};
 
   if (!clienteNome || !endereco) {
@@ -302,125 +226,87 @@ app.post("/pedidos", requireAuth, (req, res) => {
   }
 
   if (!Array.isArray(itens) || itens.length === 0) {
-    return res.status(400).json({ error: "itens é obrigatório (array com pelo menos 1 item)" });
+    return res.status(400).json({ error: "itens é obrigatório" });
   }
 
   const forma = (formaPagamento || "DINHEIRO").toUpperCase();
-  const allowedPag = ["DINHEIRO", "PIX", "CARTAO"];
-  if (!allowedPag.includes(forma)) {
-    return res.status(400).json({ error: "formaPagamento inválida", allowed: allowedPag });
+  if (!["DINHEIRO", "PIX", "CARTAO"].includes(forma)) {
+    return res.status(400).json({ error: "formaPagamento inválida" });
   }
 
   const parsedItens = itens
-    .map((i) => ({
-      produtoId: Number(i.produtoId),
-      qtd: Number(i.qtd),
-    }))
-    .filter(
-      (i) => Number.isInteger(i.produtoId) && i.produtoId > 0 && Number.isInteger(i.qtd) && i.qtd > 0
-    );
+    .map(i => ({ produtoId: Number(i.produtoId), qtd: Number(i.qtd) }))
+    .filter(i => Number.isInteger(i.produtoId) && i.produtoId > 0 && Number.isInteger(i.qtd) && i.qtd > 0);
 
   if (parsedItens.length !== itens.length) {
-    return res.status(400).json({ error: "itens inválidos. Use {produtoId, qtd} com números > 0" });
+    return res.status(400).json({ error: "itens inválidos" });
   }
 
-  const ids = parsedItens.map((i) => i.produtoId);
-  const placeholders = ids.map(() => "?").join(",");
+  try {
+    const db = getDB();
+    const ids = parsedItens.map(i => i.produtoId);
+    
+    const produtos = await db.query(
+      "SELECT id, nome, precoCentavos FROM produtos WHERE id = ANY($1)",
+      [ids]
+    );
 
-  db.all(
-    `SELECT id, nome, precoCentavos, ativo FROM produtos WHERE id IN (${placeholders}) AND ativo = 1`,
-    ids,
-    (err, produtos) => {
-      if (err) return res.status(500).json({ error: err.message });
-
-      if (!produtos || produtos.length !== ids.length) {
-        return res.status(400).json({ error: "Um ou mais produtos não existem ou estão inativos" });
-      }
-
-      const mapProd = new Map(produtos.map((p) => [p.id, p]));
-
-      const itensSnap = parsedItens.map((it) => {
-        const p = mapProd.get(it.produtoId);
-        const precoUnitCentavos = Number(p.precoCentavos || 0);
-        const subtotalCentavos = precoUnitCentavos * it.qtd;
-
-        return {
-          produtoId: p.id,
-          produtoNome: p.nome,
-          qtd: it.qtd,
-          precoUnitCentavos,
-          subtotalCentavos,
-        };
-      });
-
-      const totalCentavos = itensSnap.reduce((acc, i) => acc + i.subtotalCentavos, 0);
-
-      // Troco só faz sentido no dinheiro
-      let trocoPara =
-        trocoParaCentavos === null || trocoParaCentavos === undefined || trocoParaCentavos === ""
-          ? null
-          : Number(trocoParaCentavos);
-
-      if (forma !== "DINHEIRO") trocoPara = null;
-
-      if (trocoPara !== null && (!Number.isFinite(trocoPara) || trocoPara < totalCentavos)) {
-        return res.status(400).json({ error: "trocoParaCentavos deve ser >= totalCentavos" });
-      }
-
-      const trocoCentavos = trocoPara === null ? 0 : trocoPara - totalCentavos;
-
-      db.run(
-        `INSERT INTO pedidos (clienteNome, telefone, endereco, observacao, status, totalCentavos, trocoParaCentavos, trocoCentavos, formaPagamento)
-         VALUES (?, ?, ?, ?, 'ABERTO', ?, ?, ?, ?)`,
-        [clienteNome, telefone || "", endereco, observacao || "", totalCentavos, trocoPara, trocoCentavos, forma],
-        function (err2) {
-          if (err2) return res.status(500).json({ error: err2.message });
-
-          const pedidoId = this.lastID;
-
-          const stmt = db.prepare(
-            `INSERT INTO pedido_itens (pedidoId, produtoId, produtoNome, qtd, precoUnitCentavos, subtotalCentavos)
-             VALUES (?, ?, ?, ?, ?, ?)`
-          );
-
-          for (const item of itensSnap) {
-            stmt.run([
-              pedidoId,
-              item.produtoId,
-              item.produtoNome,
-              item.qtd,
-              item.precoUnitCentavos,
-              item.subtotalCentavos,
-            ]);
-          }
-
-          stmt.finalize((err3) => {
-            if (err3) return res.status(500).json({ error: err3.message });
-
-            db.get("SELECT * FROM pedidos WHERE id = ?", [pedidoId], (err4, pedido) => {
-              if (err4) return res.status(500).json({ error: err4.message });
-
-              db.all(
-                "SELECT * FROM pedido_itens WHERE pedidoId = ? ORDER BY id ASC",
-                [pedidoId],
-                (err5, rows) => {
-                  if (err5) return res.status(500).json({ error: err5.message });
-                  res.status(201).json({ ...pedido, itens: rows || [] });
-                }
-              );
-            });
-          });
-        }
-      );
+    if (produtos.rows.length !== ids.length) {
+      return res.status(400).json({ error: "Um ou mais produtos não existem" });
     }
-  );
+
+    const mapProd = new Map(produtos.rows.map(p => [p.id, p]));
+
+    let totalCentavos = 0;
+    for (const it of parsedItens) {
+      const p = mapProd.get(it.produtoId);
+      totalCentavos += Number(p.precocentavos) * it.qtd;
+    }
+
+    let trocoPara = trocoParaCentavos === null || trocoParaCentavos === undefined ? null : Number(trocoParaCentavos);
+    if (forma !== "DINHEIRO") trocoPara = null;
+
+    const client = await db.connect();
+    
+    try {
+      await client.query('BEGIN');
+
+      const pedidoResult = await client.query(
+        "INSERT INTO pedidos (clienteNome, telefone, endereco, observacao, status, formaPagamento, trocoParaCentavos) VALUES ($1, $2, $3, $4, 'ABERTO', $5, $6) RETURNING *",
+        [clienteNome, telefone || "", endereco, observacao || "", forma, trocoPara]
+      );
+
+      const pedidoId = pedidoResult.rows[0].id;
+
+      for (const it of parsedItens) {
+        const p = mapProd.get(it.produtoId);
+        const precoUnit = Number(p.precocentavos);
+        
+        await client.query(
+          "INSERT INTO pedido_itens (pedidoId, produtoId, qtd, precoCentavos) VALUES ($1, $2, $3, $4)",
+          [pedidoId, it.produtoId, it.qtd, precoUnit]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      const final = await db.query("SELECT * FROM pedidos WHERE id = $1", [pedidoId]);
+      const itensResult = await db.query("SELECT * FROM pedido_itens WHERE pedidoId = $1", [pedidoId]);
+
+      res.status(201).json({ ...final.rows[0], itens: itensResult.rows });
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-
-// =======================
-// Atualizar status do pedido (protegido)
-// =======================
-app.patch("/pedidos/:id/status", requireAuth, (req, res) => {
+// Atualizar status
+app.patch("/pedidos/:id/status", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const { status } = req.body;
 
@@ -434,15 +320,21 @@ app.patch("/pedidos/:id/status", requireAuth, (req, res) => {
     return res.status(400).json({ error: "status inválido", allowed });
   }
 
-  db.run("UPDATE pedidos SET status = ? WHERE id = ?", [status, id], function (err) {
-    if (err) return res.status(500).json({ error: err.message });
-    if (this.changes === 0) return res.status(404).json({ error: "Pedido não encontrado" });
+  try {
+    const db = getDB();
+    const result = await db.query(
+      "UPDATE pedidos SET status = $1 WHERE id = $2 RETURNING *",
+      [status, id]
+    );
 
-    db.get("SELECT * FROM pedidos WHERE id = ?", [id], (err2, row) => {
-      if (err) return res.status(500).json({ error: err.message });
-      res.json(row);
-    });
-  });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Pedido não encontrado" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.listen(PORT, HOST, () => {
