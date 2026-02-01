@@ -21,20 +21,32 @@ async function initDB() {
 
     // Tabela de produtos
     await client.query(`
-  CREATE TABLE IF NOT EXISTS produtos (
-    id SERIAL PRIMARY KEY,
-    nome TEXT NOT NULL,
-    precoCentavos INTEGER NOT NULL,
-    ativo INTEGER DEFAULT 1
-  )
-`);
+      CREATE TABLE IF NOT EXISTS produtos (
+        id SERIAL PRIMARY KEY,
+        nome TEXT NOT NULL,
+        precoCentavos INTEGER NOT NULL
+      )
+    `);
 
-// Adicionar coluna ativo se não existir (para tabelas já criadas)
-await client.query(`
-  ALTER TABLE produtos 
-  ADD COLUMN IF NOT EXISTS ativo INTEGER DEFAULT 1
-`);
-    
+    // ✅ ADICIONAR COLUNA ATIVO (se não existir)
+    try {
+      await client.query(`
+        ALTER TABLE produtos ADD COLUMN ativo INTEGER DEFAULT 1
+      `);
+      console.log('✅ Coluna ativo adicionada à tabela produtos');
+    } catch (err) {
+      if (err.code === '42701') {
+        // Coluna já existe, tudo bem
+        console.log('ℹ️ Coluna ativo já existe');
+      } else {
+        console.error('⚠️ Erro ao adicionar coluna ativo:', err.message);
+      }
+    }
+
+    // Garantir que produtos existentes tenham ativo = 1
+    await client.query(`
+      UPDATE produtos SET ativo = 1 WHERE ativo IS NULL
+    `);
 
     // Tabela de pedidos
     await client.query(`
@@ -81,10 +93,10 @@ await client.query(`
     
     if (parseInt(checkProdutos.rows[0].count) === 0) {
       await client.query(`
-        INSERT INTO produtos (nome, precoCentavos) VALUES
-        ('Vasilhame 20L + água', 2300),
-        ('Vasilhame 20L (vazio)', 3500),
-        ('Água 20L (troca)', 1050)
+        INSERT INTO produtos (nome, precoCentavos, ativo) VALUES
+        ('Vasilhame 20L + água', 2300, 1),
+        ('Vasilhame 20L (vazio)', 3500, 1),
+        ('Água 20L (troca)', 1050, 1)
       `);
       console.log('✅ Produtos padrão criados');
     }
