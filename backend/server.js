@@ -30,6 +30,31 @@ app.get("/health", (req, res) => {
   res.json({ ok: true, name: "ETGÁGUA Backend", time: new Date().toISOString() });
 });
 
+// ===== MIGRAÇÃO TEMPORÁRIA - REMOVER DEPOIS =====
+app.get("/migrate/add-ativo", async (req, res) => {
+  try {
+    const db = getDB();
+    
+    // Adicionar coluna
+    await db.query(`ALTER TABLE produtos ADD COLUMN IF NOT EXISTS ativo INTEGER DEFAULT 1`);
+    
+    // Atualizar produtos existentes
+    await db.query(`UPDATE produtos SET ativo = 1 WHERE ativo IS NULL`);
+    
+    // Verificar
+    const result = await db.query(`SELECT * FROM produtos`);
+    
+    res.json({ 
+      success: true, 
+      message: "Coluna ativo adicionada com sucesso!",
+      produtos: result.rows 
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// ================================================
+
 // Relatórios
 app.use("/relatorios", requireAuth, relatoriosRoutes);
 
