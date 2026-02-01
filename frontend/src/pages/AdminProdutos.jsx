@@ -92,7 +92,6 @@ export default function AdminProdutos() {
     if (!confirm(`Tem certeza que deseja remover "${produto.nome}"?`)) return;
 
     try {
-      // Como não temos rota DELETE, vamos desativar permanentemente
       await api.patch(`/admin/produtos/${produto.id}`, {
         nome: `[REMOVIDO] ${produto.nome}`,
         ativo: 0,
@@ -109,21 +108,19 @@ export default function AdminProdutos() {
     e.preventDefault();
     
     try {
-      // O checkbox retorna true/false, mas o backend espera 0 ou 1
       const novoAtivo = e.target.checked ? 1 : 0;
       
       await api.patch(`/admin/produtos/${produto.id}`, {
         ativo: novoAtivo,
       });
       
-      // Atualizar localmente para feedback imediato
       setProdutos(prev => prev.map(p => 
         p.id === produto.id ? { ...p, ativo: novoAtivo } : p
       ));
     } catch (err) {
       console.error(err);
       alert("❌ Erro ao atualizar status");
-      carregar(); // Recarregar em caso de erro
+      carregar();
     }
   }
 
@@ -165,89 +162,81 @@ export default function AdminProdutos() {
           </button>
         </div>
 
-        {produtos.length === 0 ? (
+        {produtos.filter(p => !p.nome.startsWith('[REMOVIDO]')).length === 0 ? (
           <p style={{ opacity: 0.7 }}>Nenhum produto cadastrado.</p>
         ) : (
           <div style={{ display: "grid", gap: 12 }}>
-            {produtos.map((p) => {
-              const isAtivo = p.ativo === 1 || p.ativo === true;
-              
-              {produtos.length === 0 ? (
-  <p style={{ opacity: 0.7 }}>Nenhum produto cadastrado.</p>
-) : (
-  <div style={{ display: "grid", gap: 12 }}>
-    {produtos
-      .filter(p => !p.nome.startsWith('[REMOVIDO]'))
-      .map((p) => {
-        const isAtivo = p.ativo === 1 || p.ativo === true;
-        
-        return (
-          <div
-            key={p.id}
-            style={{
-              padding: 16,
-              border: "1px solid rgba(255,255,255,0.1)",
-              borderRadius: 10,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: 12,
-              backgroundColor: isAtivo ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
-            }}
-          >
-            <div style={{ flex: 1, minWidth: 200 }}>
-              <div style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 4 }}>
-                {p.nome}
-              </div>
-              <div style={{ fontSize: 16, color: '#10b981' }}>
-                R$ {(p.precocentavos / 100).toFixed(2)}
-              </div>
-            </div>
+            {produtos
+              .filter(p => !p.nome.startsWith('[REMOVIDO]'))
+              .map((p) => {
+                const isAtivo = p.ativo === 1 || p.ativo === true;
+                
+                return (
+                  <div
+                    key={p.id}
+                    style={{
+                      padding: 16,
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 10,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: 12,
+                      backgroundColor: isAtivo ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 4 }}>
+                        {p.nome}
+                      </div>
+                      <div style={{ fontSize: 16, color: '#10b981' }}>
+                        R$ {(p.precocentavos / 100).toFixed(2)}
+                      </div>
+                    </div>
 
-            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <label style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: 8, 
-                cursor: 'pointer',
-                padding: '8px 12px',
-                borderRadius: 8,
-                backgroundColor: isAtivo ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
-                border: `2px solid ${isAtivo ? '#10b981' : '#ef4444'}`,
-              }}>
-                <input
-                  type="checkbox"
-                  checked={isAtivo}
-                  onChange={(e) => toggleAtivo(p, e)}
-                  style={{ width: 18, height: 18, cursor: 'pointer' }}
-                />
-                <span style={{ fontWeight: 600, fontSize: 14 }}>
-                  {isAtivo ? '✅ Ativo' : '❌ Inativo'}
-                </span>
-              </label>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                      <label style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 8, 
+                        cursor: 'pointer',
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        backgroundColor: isAtivo ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                        border: `2px solid ${isAtivo ? '#10b981' : '#ef4444'}`,
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={isAtivo}
+                          onChange={(e) => toggleAtivo(p, e)}
+                          style={{ width: 18, height: 18, cursor: 'pointer' }}
+                        />
+                        <span style={{ fontWeight: 600, fontSize: 14 }}>
+                          {isAtivo ? '✅ Ativo' : '❌ Inativo'}
+                        </span>
+                      </label>
 
-              <button 
-                onClick={() => abrirEdicao(p)} 
-                className="btn"
-                style={{ padding: '8px 16px' }}
-              >
-                ✏️ Editar
-              </button>
+                      <button 
+                        onClick={() => abrirEdicao(p)} 
+                        className="btn"
+                        style={{ padding: '8px 16px' }}
+                      >
+                        ✏️ Editar
+                      </button>
 
-              <button 
-                onClick={() => removerProduto(p)} 
-                className="btn danger"
-                style={{ padding: '8px 16px' }}
-              >
-                🗑️ Remover
-              </button>
-            </div>
+                      <button 
+                        onClick={() => removerProduto(p)} 
+                        className="btn danger"
+                        style={{ padding: '8px 16px' }}
+                      >
+                        🗑️ Remover
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
-        );
-      })}
-  </div>
-)}
         )}
       </div>
 
