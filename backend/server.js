@@ -15,7 +15,7 @@ const HOST = process.env.HOST || "0.0.0.0";
 app.use(cors());
 app.use(express.json());
 
-// helpers
+// Helper para converter valores em boolean
 function parseBool(value, fallback) {
   if (value === undefined) return fallback;
   if (typeof value === "boolean") return value;
@@ -28,25 +28,26 @@ function parseBool(value, fallback) {
   return fallback;
 }
 
-// init db
+// Inicializar banco
 initDB().catch((err) => {
   console.error("Erro fatal ao inicializar DB:", err);
   process.exit(1);
 });
 
-// health
+// Health check
 app.get("/", (req, res) => {
   res.json({ ok: true, name: "ETGÁGUA Backend", time: new Date().toISOString() });
 });
+
 app.get("/health", (req, res) => {
   res.json({ ok: true, name: "ETGÁGUA Backend", time: new Date().toISOString() });
 });
 
-// relatorios (admin)
+// Relatórios (ADMIN)
 app.use("/relatorios", requireAuth, relatoriosRoutes);
 
 // =========================
-// PRODUTOS (somente ativos)
+// PRODUTOS (somente ativos para atendentes)
 // =========================
 app.get("/produtos", requireAuth, async (req, res) => {
   try {
@@ -161,7 +162,7 @@ app.post("/admin/produtos", requireAuth, requireRole("ADMIN"), async (req, res) 
   if (!Number.isInteger(precoFinal)) precoFinal = Math.round(precoFinal);
   if (precoFinal < 0) return res.status(400).json({ error: "precoCentavos não pode ser negativo" });
 
-  const ativoFinal = parseBool(ativo, true); // ✅ nasce ativo por padrão
+  const ativoFinal = parseBool(ativo, true);
 
   try {
     const db = getDB();
@@ -213,20 +214,6 @@ app.patch("/admin/produtos/:id", requireAuth, requireRole("ADMIN"), async (req, 
   }
 });
 
-app.delete("/admin/produtos/:id", requireAuth, requireRole("ADMIN"), async (req, res) => {
-  const id = Number(req.params.id);
-  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "id inválido" });
-
-  try {
-    const db = getDB();
-    const result = await db.query("DELETE FROM produtos WHERE id = $1 RETURNING id", [id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: "Produto não encontrado" });
-    res.json({ ok: true, id: result.rows[0].id });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // =========================
 // PEDIDOS (listar com itens)
 // =========================
@@ -252,16 +239,21 @@ app.get("/pedidos", requireAuth, async (req, res) => {
     for (const it of itens.rows) {
       if (!map.has(it.pedidoid)) map.set(it.pedidoid, []);
       map.get(it.pedidoid).push({
-        ...it,
+        id: it.id,
         pedidoId: it.pedidoid,
         produtoId: it.produtoid,
+        qtd: it.qtd,
         precoCentavos: it.precocentavos,
       });
     }
 
     const out = pedidos.rows.map((p) => ({
-      ...p,
+      id: p.id,
       clienteNome: p.clientenome,
+      telefone: p.telefone,
+      endereco: p.endereco,
+      observacao: p.observacao,
+      status: p.status,
       formaPagamento: p.formapagamento,
       trocoParaCentavos: p.trocoparacentavos,
       createdAt: p.createdat,
@@ -306,11 +298,9 @@ app.post("/pedidos", requireAuth, async (req, res) => {
     const ids = parsedItens.map((i) => i.produtoId);
 
     const produtos = await db.query(
-      `
-      SELECT id, nome, precocentavos AS "precoCentavos"
-      FROM produtos
-      WHERE id = ANY($1) AND ativo = true
-      `,
+      `SELECT id, nome, precocentavos AS "precoCentavos"
+       FROM produtos
+       WHERE id = ANY($1) AND ativo = true`,
       [ids]
     );
 
@@ -354,15 +344,20 @@ app.post("/pedidos", requireAuth, async (req, res) => {
 
       const outPedido = final.rows[0];
       const outItens = itensResult.rows.map((it) => ({
-        ...it,
+        id: it.id,
         pedidoId: it.pedidoid,
         produtoId: it.produtoid,
+        qtd: it.qtd,
         precoCentavos: it.precocentavos,
       }));
 
       res.status(201).json({
-        ...outPedido,
+        id: outPedido.id,
         clienteNome: outPedido.clientenome,
+        telefone: outPedido.telefone,
+        endereco: outPedido.endereco,
+        observacao: outPedido.observacao,
+        status: outPedido.status,
         formaPagamento: outPedido.formapagamento,
         trocoParaCentavos: outPedido.trocoparacentavos,
         createdAt: outPedido.createdat,
@@ -401,8 +396,12 @@ app.patch("/pedidos/:id/status", requireAuth, async (req, res) => {
 
     const p = result.rows[0];
     res.json({
-      ...p,
+      id: p.id,
       clienteNome: p.clientenome,
+      telefone: p.telefone,
+      endereco: p.endereco,
+      observacao: p.observacao,
+      status: p.status,
       formaPagamento: p.formapagamento,
       trocoParaCentavos: p.trocoparacentavos,
       createdAt: p.createdat,
