@@ -2,24 +2,31 @@ const { Pool } = require('pg');
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: false }
+    : false
 });
 
 async function initDB() {
   const client = await pool.connect();
-  
+
   try {
-    // Tabela de usuários
+    /* =========================
+       TABELA DE USUÁRIOS
+    ========================== */
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
         passwordHash TEXT NOT NULL,
-        role TEXT NOT NULL CHECK (role IN ('ADMIN', 'ATENDENTE', 'ENTREGADOR'))
+        role TEXT NOT NULL
+          CHECK (role IN ('ADMIN', 'ATENDENTE', 'ENTREGADOR'))
       )
     `);
 
-    // Tabela de produtos
+    /* =========================
+       TABELA DE PRODUTOS
+    ========================== */
     await client.query(`
       CREATE TABLE IF NOT EXISTS produtos (
         id SERIAL PRIMARY KEY,
@@ -28,27 +35,33 @@ async function initDB() {
       )
     `);
 
-    // ✅ ADICIONAR COLUNA ATIVO (se não existir)
+    /* =========================
+       COLUNA ATIVO (BOOLEAN)
+    ========================== */
     try {
       await client.query(`
-        ALTER TABLE produtos ADD COLUMN ativo INTEGER DEFAULT 1
+        ALTER TABLE produtos
+        ADD COLUMN ativo BOOLEAN DEFAULT true
       `);
       console.log('✅ Coluna ativo adicionada à tabela produtos');
     } catch (err) {
       if (err.code === '42701') {
-        // Coluna já existe, tudo bem
         console.log('ℹ️ Coluna ativo já existe');
       } else {
-        console.error('⚠️ Erro ao adicionar coluna ativo:', err.message);
+        throw err;
       }
     }
 
-    // Garantir que produtos existentes tenham ativo = 1
+    // Garantir produtos antigos como ativos
     await client.query(`
-      UPDATE produtos SET ativo = 1 WHERE ativo IS NULL
+      UPDATE produtos
+      SET ativo = true
+      WHERE ativo IS NULL
     `);
 
-    // Tabela de pedidos
+    /* =========================
+       TABELA DE PEDIDOS
+    ========================== */
     await client.query(`
       CREATE TABLE IF NOT EXISTS pedidos (
         id SERIAL PRIMARY KEY,
@@ -56,52 +69,70 @@ async function initDB() {
         telefone TEXT,
         endereco TEXT NOT NULL,
         observacao TEXT,
-        status TEXT NOT NULL DEFAULT 'ABERTO' CHECK (status IN ('ABERTO', 'EM_ROTA', 'ENTREGUE', 'CANCELADO')),
-        formaPagamento TEXT NOT NULL CHECK (formaPagamento IN ('DINHEIRO', 'PIX', 'CARTAO')),
+        status TEXT NOT NULL DEFAULT 'ABERTO'
+          CHECK (status IN ('ABERTO', 'EM_ROTA', 'ENTREGUE', 'CANCELADO')),
+        formaPagamento TEXT NOT NULL
+          CHECK (formaPagamento IN ('DINHEIRO', 'PIX', 'CARTAO')),
         trocoParaCentavos INTEGER,
         createdAt TIMESTAMP DEFAULT NOW(),
         entregadorId INTEGER REFERENCES users(id)
       )
     `);
 
-    // Tabela de itens do pedido
+    /* =========================
+       ITENS DO PEDIDO
+    ========================== */
     await client.query(`
       CREATE TABLE IF NOT EXISTS pedido_itens (
         id SERIAL PRIMARY KEY,
-        pedidoId INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
-        produtoId INTEGER NOT NULL REFERENCES produtos(id),
+        pedidoId INTEGER NOT NULL
+          REFERENCES pedidos(id) ON DELETE CASCADE,
+        produtoId INTEGER NOT NULL
+          REFERENCES produtos(id),
         qtd INTEGER NOT NULL,
         precoCentavos INTEGER NOT NULL
       )
     `);
 
-    // Criar usuário admin padrão se não existir
-    const checkAdmin = await client.query(`SELECT * FROM users WHERE username = 'admin'`);
-    
+    /* =========================
+       USUÁRIO ADMIN PADRÃO
+    ========================== */
+    const checkAdmin = await client.query(
+      `SELECT 1 FROM users WHERE username = 'admin'`
+    );
+
     if (checkAdmin.rows.length === 0) {
       const bcrypt = require('bcrypt');
       const hash = await bcrypt.hash('admin123', 10);
+
       await client.query(
-        `INSERT INTO users (username, passwordHash, role) VALUES ($1, $2, $3)`,
+        `INSERT INTO users (username, passwordHash, role)
+         VALUES ($1, $2, $3)`,
         ['admin', hash, 'ADMIN']
       );
+
       console.log('✅ Usuário admin criado');
     }
 
-    // Criar produtos padrão se não existirem
-    const checkProdutos = await client.query(`SELECT COUNT(*) as count FROM produtos`);
-    
+    /* =========================
+       PRODUTOS PADRÃO
+    ========================== */
+    const checkProdutos = await client.query(
+      `SELECT COUNT(*) AS count FROM produtos`
+    );
+
     if (parseInt(checkProdutos.rows[0].count) === 0) {
       await client.query(`
         INSERT INTO produtos (nome, precoCentavos, ativo) VALUES
-        ('Vasilhame 20L + água', 2300, 1),
-        ('Vasilhame 20L (vazio)', 3500, 1),
-        ('Água 20L (troca)', 1050, 1)
+        ('Vasilhame 20L + água', 2300, true),
+        ('Vasilhame 20L (vazio)', 3500, true),
+        ('Água 20L (troca)', 1050, true)
       `);
+
       console.log('✅ Produtos padrão criados');
     }
 
-    console.log('✅ Banco PostgreSQL inicializado com sucesso!');
+    console.log('🚀 Banco PostgreSQL inicializado com sucesso!');
   } catch (err) {
     console.error('❌ Erro ao inicializar banco:', err);
     throw err;
@@ -110,8 +141,14 @@ async function initDB() {
   }
 }
 
+/* =========================
+   EXPORTS
+========================== */
 function getDB() {
   return pool;
 }
 
-module.exports = { initDB, getDB };
+module.exports = {
+  initDB,
+  getDB
+};
