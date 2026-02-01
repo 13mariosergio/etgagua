@@ -15,9 +15,22 @@ const HOST = process.env.HOST || "0.0.0.0";
 app.use(cors());
 app.use(express.json());
 
+// ========= helpers =========
+function parseBool(value, fallback) {
+  if (value === undefined) return fallback;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const v = value.trim().toLowerCase();
+    if (["true", "1", "sim", "s", "on"].includes(v)) return true;
+    if (["false", "0", "nao", "não", "n", "off"].includes(v)) return false;
+  }
+  return fallback;
+}
+
 // Inicializar banco
-initDB().catch(err => {
-  console.error('Erro fatal ao inicializar DB:', err);
+initDB().catch((err) => {
+  console.error("Erro fatal ao inicializar DB:", err);
   process.exit(1);
 });
 
@@ -33,12 +46,14 @@ app.get("/health", (req, res) => {
 // Relatórios
 app.use("/relatorios", requireAuth, relatoriosRoutes);
 
-// Produtos ativos
+// =========================
+// PRODUTOS (apenas ativos)
+// =========================
 app.get("/produtos", requireAuth, async (req, res) => {
   try {
     const db = getDB();
     const result = await db.query(
-      "SELECT id, nome, precoCentavos FROM produtos ORDER BY id DESC"
+      'SELECT id, nome, "precoCentavos" FROM produtos WHERE ativo = true ORDER BY id DESC'
     );
     res.json(result.rows);
   } catch (err) {
@@ -46,7 +61,9 @@ app.get("/produtos", requireAuth, async (req, res) => {
   }
 });
 
-// Login
+// =========================
+// LOGIN
+// =========================
 app.post("/auth/login", async (req, res) => {
   const { username, password } = req.body || {};
 
@@ -77,13 +94,13 @@ app.post("/auth/login", async (req, res) => {
   }
 });
 
-// Admin - Users
+// =========================
+// ADMIN - USERS
+// =========================
 app.get("/admin/users", requireAuth, requireRole("ADMIN"), async (req, res) => {
   try {
     const db = getDB();
-    const result = await db.query(
-      "SELECT id, username, role FROM users ORDER BY id DESC"
-    );
+    const result = await db.query("SELECT id, username, role FROM users ORDER BY id DESC");
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -104,22 +121,24 @@ app.post("/admin/users", requireAuth, requireRole("ADMIN"), async (req, res) => 
   try {
     const passwordHash = await bcrypt.hash(password, 10);
     const db = getDB();
-    
+
     const result = await db.query(
-      "INSERT INTO users (username, passwordHash, role) VALUES ($1, $2, $3) RETURNING *",
+      "INSERT INTO users (username, passwordHash, role) VALUES ($1, $2, $3) RETURNING id, username, role",
       [username, passwordHash, role]
     );
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    if (err.code === '23505') { // Unique violation
+    if (err.code === "23505") {
       return res.status(409).json({ error: "username já existe" });
     }
     res.status(500).json({ error: err.message });
   }
 });
 
-// Admin - Produtos
+// =========================
+// ADMIN - PRODUTOS
+// =========================
 app.get("/admin/produtos", requireAuth, requireRole("ADMIN"), async (req, res) => {
   try {
     const db = getDB();
@@ -130,8 +149,9 @@ app.get("/admin/produtos", requireAuth, requireRole("ADMIN"), async (req, res) =
   }
 });
 
+// ✅ cria produto ativo por padrão (ativo = true)
 app.post("/admin/produtos", requireAuth, requireRole("ADMIN"), async (req, res) => {
-  const { nome, precoCentavos } = req.body || {};
+  const { nome, precoCentavos, ativo } = req.body || {};
 
   if (!nome) return res.status(400).json({ error: "nome é obrigatório" });
 
@@ -140,11 +160,14 @@ app.post("/admin/produtos", requireAuth, requireRole("ADMIN"), async (req, res) 
   if (!Number.isInteger(precoFinal)) precoFinal = Math.round(precoFinal);
   if (precoFinal < 0) return res.status(400).json({ error: "precoCentavos não pode ser negativo" });
 
+  // ✅ se não vier "ativo", nasce true
+  const ativoFinal = parseBool(ativo, true);
+
   try {
     const db = getDB();
     const result = await db.query(
-      "INSERT INTO produtos (nome, precoCentavos) VALUES ($1, $2) RETURNING *",
-      [nome, precoFinal]
+      "INSERT INTO produtos (nome, precoCentavos, ativo) VALUES ($1, $2, $3) RETURNING *",
+      [nome, precoFinal, ativoFinal]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -152,55 +175,60 @@ app.post("/admin/produtos", requireAuth, requireRole("ADMIN"), async (req, res) 
   }
 });
 
+// ✅ atualiza nome, preço e ativo (sem “voltar” sozinho)
 app.patch("/admin/produtos/:id", requireAuth, requireRole("ADMIN"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "id inválido" });
 
-  const { nome, precoCentavos } = req.body || {};
+  const { nome, precoCentavos, ativo } = req.body || {};
 
   try {
     const db = getDB();
-    
+
     const atual = await db.query("SELECT * FROM produtos WHERE id = $1", [id]);
     if (atual.rows.length === 0) return res.status(404).json({ error: "Produto não encontrado" });
 
-    const nomeFinal = nome ?? atual.rows[0].nome;
-    let precoFinal = precoCentavos === undefined ? atual.rows[0].precocentavos : Number(precoCentavos);
-    
-    if (!Number.isFinite(precoFinal)) precoFinal = atual.rows[0].precocentavos;
+    const row = atual.rows[0];
+
+    const nomeFinal = nome ?? row.nome;
+
+    let precoFinal =
+      precoCentavos === undefined ? Number(row.precocentavos) : Number(precoCentavos);
+    if (!Number.isFinite(precoFinal)) precoFinal = Number(row.precocentavos);
     if (!Number.isInteger(precoFinal)) precoFinal = Math.round(precoFinal);
     if (precoFinal < 0) return res.status(400).json({ error: "precoCentavos não pode ser negativo" });
 
+    const ativoFinal = parseBool(ativo, row.ativo);
+
     const result = await db.query(
-      "UPDATE produtos SET nome = $1, precoCentavos = $2 WHERE id = $3 RETURNING *",
-      [nomeFinal, precoFinal, id]
+      "UPDATE produtos SET nome = $1, precoCentavos = $2, ativo = $3 WHERE id = $4 RETURNING *",
+      [nomeFinal, precoFinal, ativoFinal, id]
     );
-    
+
     res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Pedidos (listar com itens)
+// =========================
+// PEDIDOS (listar com itens)
+// =========================
 app.get("/pedidos", requireAuth, async (req, res) => {
   const { status } = req.query;
 
   try {
     const db = getDB();
-    
-    let pedidos;
-    if (status) {
-      pedidos = await db.query("SELECT * FROM pedidos WHERE status = $1 ORDER BY id DESC", [status]);
-    } else {
-      pedidos = await db.query("SELECT * FROM pedidos ORDER BY id DESC");
-    }
+
+    const pedidos = status
+      ? await db.query("SELECT * FROM pedidos WHERE status = $1 ORDER BY id DESC", [status])
+      : await db.query("SELECT * FROM pedidos ORDER BY id DESC");
 
     if (pedidos.rows.length === 0) return res.json([]);
 
-    const ids = pedidos.rows.map(p => p.id);
+    const ids = pedidos.rows.map((p) => p.id);
     const itens = await db.query(
-      "SELECT * FROM pedido_itens WHERE pedidoId = ANY($1) ORDER BY id ASC",
+      'SELECT * FROM pedido_itens WHERE "pedidoId" = ANY($1) ORDER BY id ASC',
       [ids]
     );
 
@@ -210,16 +238,19 @@ app.get("/pedidos", requireAuth, async (req, res) => {
       map.get(it.pedidoid).push(it);
     }
 
-    const out = pedidos.rows.map(p => ({ ...p, itens: map.get(p.id) || [] }));
+    const out = pedidos.rows.map((p) => ({ ...p, itens: map.get(p.id) || [] }));
     res.json(out);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// Criar pedido
+// =========================
+// CRIAR PEDIDO (só com produtos ativos)
+// =========================
 app.post("/pedidos", requireAuth, async (req, res) => {
-  const { clienteNome, telefone, endereco, observacao, itens, trocoParaCentavos, formaPagamento } = req.body || {};
+  const { clienteNome, telefone, endereco, observacao, itens, trocoParaCentavos, formaPagamento } =
+    req.body || {};
 
   if (!clienteNome || !endereco) {
     return res.status(400).json({ error: "clienteNome e endereco são obrigatórios" });
@@ -235,8 +266,14 @@ app.post("/pedidos", requireAuth, async (req, res) => {
   }
 
   const parsedItens = itens
-    .map(i => ({ produtoId: Number(i.produtoId), qtd: Number(i.qtd) }))
-    .filter(i => Number.isInteger(i.produtoId) && i.produtoId > 0 && Number.isInteger(i.qtd) && i.qtd > 0);
+    .map((i) => ({ produtoId: Number(i.produtoId), qtd: Number(i.qtd) }))
+    .filter(
+      (i) =>
+        Number.isInteger(i.produtoId) &&
+        i.produtoId > 0 &&
+        Number.isInteger(i.qtd) &&
+        i.qtd > 0
+    );
 
   if (parsedItens.length !== itens.length) {
     return res.status(400).json({ error: "itens inválidos" });
@@ -244,35 +281,34 @@ app.post("/pedidos", requireAuth, async (req, res) => {
 
   try {
     const db = getDB();
-    const ids = parsedItens.map(i => i.produtoId);
-    
+    const ids = parsedItens.map((i) => i.produtoId);
+
+    // ✅ só produtos ativos
     const produtos = await db.query(
-      "SELECT id, nome, precoCentavos FROM produtos WHERE id = ANY($1)",
+      'SELECT id, nome, "precoCentavos" FROM produtos WHERE id = ANY($1) AND ativo = true',
       [ids]
     );
 
     if (produtos.rows.length !== ids.length) {
-      return res.status(400).json({ error: "Um ou mais produtos não existem" });
+      return res.status(400).json({ error: "Um ou mais produtos não existem ou estão inativos" });
     }
 
-    const mapProd = new Map(produtos.rows.map(p => [p.id, p]));
+    const mapProd = new Map(produtos.rows.map((p) => [p.id, p]));
 
-    let totalCentavos = 0;
-    for (const it of parsedItens) {
-      const p = mapProd.get(it.produtoId);
-      totalCentavos += Number(p.precocentavos) * it.qtd;
-    }
-
-    let trocoPara = trocoParaCentavos === null || trocoParaCentavos === undefined ? null : Number(trocoParaCentavos);
+    let trocoPara =
+      trocoParaCentavos === null || trocoParaCentavos === undefined
+        ? null
+        : Number(trocoParaCentavos);
     if (forma !== "DINHEIRO") trocoPara = null;
 
     const client = await db.connect();
-    
+
     try {
-      await client.query('BEGIN');
+      await client.query("BEGIN");
 
       const pedidoResult = await client.query(
-        "INSERT INTO pedidos (clienteNome, telefone, endereco, observacao, status, formaPagamento, trocoParaCentavos) VALUES ($1, $2, $3, $4, 'ABERTO', $5, $6) RETURNING *",
+        `INSERT INTO pedidos (clienteNome, telefone, endereco, observacao, status, formaPagamento, trocoParaCentavos)
+         VALUES ($1, $2, $3, $4, 'ABERTO', $5, $6) RETURNING *`,
         [clienteNome, telefone || "", endereco, observacao || "", forma, trocoPara]
       );
 
@@ -281,21 +317,24 @@ app.post("/pedidos", requireAuth, async (req, res) => {
       for (const it of parsedItens) {
         const p = mapProd.get(it.produtoId);
         const precoUnit = Number(p.precocentavos);
-        
+
         await client.query(
-          "INSERT INTO pedido_itens (pedidoId, produtoId, qtd, precoCentavos) VALUES ($1, $2, $3, $4)",
+          'INSERT INTO pedido_itens ("pedidoId", "produtoId", qtd, "precoCentavos") VALUES ($1, $2, $3, $4)',
           [pedidoId, it.produtoId, it.qtd, precoUnit]
         );
       }
 
-      await client.query('COMMIT');
+      await client.query("COMMIT");
 
       const final = await db.query("SELECT * FROM pedidos WHERE id = $1", [pedidoId]);
-      const itensResult = await db.query("SELECT * FROM pedido_itens WHERE pedidoId = $1", [pedidoId]);
+      const itensResult = await db.query(
+        'SELECT * FROM pedido_itens WHERE "pedidoId" = $1',
+        [pedidoId]
+      );
 
       res.status(201).json({ ...final.rows[0], itens: itensResult.rows });
     } catch (err) {
-      await client.query('ROLLBACK');
+      await client.query("ROLLBACK");
       throw err;
     } finally {
       client.release();
@@ -305,7 +344,9 @@ app.post("/pedidos", requireAuth, async (req, res) => {
   }
 });
 
-// Atualizar status
+// =========================
+// ATUALIZAR STATUS
+// =========================
 app.patch("/pedidos/:id/status", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   const { status } = req.body;

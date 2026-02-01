@@ -3,212 +3,157 @@ const { getDB } = require("./db-postgres");
 
 const router = express.Router();
 
-// precisa estar logado e ser ADMIN
 function requireAdmin(req, res, next) {
   if (!req.user) return res.status(401).json({ error: "Não autenticado." });
   if (req.user.role !== "ADMIN") return res.status(403).json({ error: "Acesso negado." });
   next();
 }
 
-function rangeFromDates(inicio, fim) {
-  const ini = inicio ? `${inicio} 00:00:00` : null;
-  const end = fim ? `${fim} 23:59:59` : null;
-  return { ini, end };
+function buildWhere({ inicio, fim, status }) {
+  const where = [];
+  const params = [];
+
+  // createdAt é timestamp no Postgres
+  if (inicio) {
+    params.push(`${inicio} 00:00:00`);
+    where.push(`p."createdAt" >= $${params.length}`);
+  }
+  if (fim) {
+    params.push(`${fim} 23:59:59`);
+    where.push(`p."createdAt" <= $${params.length}`);
+  }
+  if (status && status !== "TODOS") {
+    params.push(status);
+    where.push(`p.status = $${params.length}`);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  return { whereSql, params };
 }
 
 // GET /relatorios/resumo?inicio=YYYY-MM-DD&fim=YYYY-MM-DD&status=ENTREGUE|TODOS
-router.get("/resumo", requireAdmin, (req, res) => {
-  const { inicio, fim, status = "ENTREGUE" } = req.query;
-  const { ini, end } = rangeFromDates(inicio, fim);
+router.get("/resumo", requireAdmin, async (req, res) => {
+  try {
+    const db = getDB();
+    const { inicio, fim, status = "ENTREGUE" } = req.query;
 
-  const where = [];
-  const params = [];
+    const { whereSql, params } = buildWhere({ inicio, fim, status });
 
-  if (ini && end) {
-    where.push("p.criadoEm BETWEEN ? AND ?");
-    params.push(ini, end);
-  } else if (ini) {
-    where.push("p.criadoEm >= ?");
-    params.push(ini);
-  } else if (end) {
-    where.push("p.criadoEm <= ?");
-    params.push(end);
-  }
+    // totalCentavos calculado por itens
+    const sqlResumo = `
+      SELECT
+        COUNT(DISTINCT p.id) AS pedidos,
+        COALESCE(SUM(pi.qtd * pi."precoCentavos"), 0) AS totalCentavos,
+        CASE
+          WHEN COUNT(DISTINCT p.id) = 0 THEN 0
+          ELSE CAST(ROUND(1.0 * COALESCE(SUM(pi.qtd * pi."precoCentavos"),0) / COUNT(DISTINCT p.id)) AS INTEGER)
+        END AS ticketMedioCentavos,
+        COALESCE(SUM(pi.qtd),0) AS itensVendidos
+      FROM pedidos p
+      LEFT JOIN pedido_itens pi ON pi."pedidoId" = p.id
+      ${whereSql}
+    `;
 
-  if (status && status !== "TODOS") {
-    where.push("p.status = ?");
-    params.push(status);
-  }
+    const sqlPorStatus = `
+      SELECT
+        p.status,
+        COUNT(DISTINCT p.id) AS qtd,
+        COALESCE(SUM(pi.qtd * pi."precoCentavos"), 0) AS totalCentavos
+      FROM pedidos p
+      LEFT JOIN pedido_itens pi ON pi."pedidoId" = p.id
+      ${whereSql}
+      GROUP BY p.status
+      ORDER BY qtd DESC
+    `;
 
-  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const sqlPorPagamento = `
+      SELECT
+        COALESCE(p."formaPagamento", 'NAO_INFORMADO') AS formaPagamento,
+        COUNT(DISTINCT p.id) AS qtd,
+        COALESCE(SUM(pi.qtd * pi."precoCentavos"), 0) AS totalCentavos
+      FROM pedidos p
+      LEFT JOIN pedido_itens pi ON pi."pedidoId" = p.id
+      ${whereSql}
+      GROUP BY COALESCE(p."formaPagamento", 'NAO_INFORMADO')
+      ORDER BY totalCentavos DESC, qtd DESC
+    `;
 
-  const sqlResumo = `
-    SELECT
-      COUNT(*) as pedidos,
-      COALESCE(SUM(p.totalCentavos),0) as totalCentavos,
-      CASE WHEN COUNT(*) = 0 THEN 0 ELSE CAST(ROUND(1.0 * COALESCE(SUM(p.totalCentavos),0) / COUNT(*)) AS INTEGER) END as ticketMedioCentavos,
-      COALESCE(SUM(p.trocoCentavos),0) as trocoTotalCentavos
-    FROM pedidos p
-    ${whereSql}
-  `;
+    const [resumo, porStatus, porPagamento] = await Promise.all([
+      db.query(sqlResumo, params),
+      db.query(sqlPorStatus, params),
+      db.query(sqlPorPagamento, params),
+    ]);
 
-  const sqlPorStatus = `
-    SELECT p.status, COUNT(*) as qtd, COALESCE(SUM(p.totalCentavos),0) as totalCentavos
-    FROM pedidos p
-    ${whereSql}
-    GROUP BY p.status
-    ORDER BY qtd DESC
-  `;
-
-  const sqlItens = `
-    SELECT COALESCE(SUM(pi.qtd),0) as itensVendidos
-    FROM pedido_itens pi
-    JOIN pedidos p ON p.id = pi.pedidoId
-    ${whereSql}
-  `;
-
-  // ✅ NOVO: Por forma de pagamento (Dinheiro / Pix / Cartão)
-  // Observação: se formaPagamento estiver null em pedidos antigos, cai em 'NAO_INFORMADO'
-  const sqlPorPagamento = `
-    SELECT
-      COALESCE(p.formaPagamento, 'NAO_INFORMADO') as formaPagamento,
-      COUNT(*) as qtd,
-      COALESCE(SUM(p.totalCentavos),0) as totalCentavos,
-      COALESCE(SUM(p.trocoCentavos),0) as trocoCentavos
-    FROM pedidos p
-    ${whereSql}
-    GROUP BY COALESCE(p.formaPagamento, 'NAO_INFORMADO')
-    ORDER BY totalCentavos DESC, qtd DESC
-  `;
-
-  db.get(sqlResumo, params, (err, resumo) => {
-    if (err) return res.status(500).json({ error: err.message });
-
-    db.all(sqlPorStatus, params, (err2, porStatus) => {
-      if (err2) return res.status(500).json({ error: err2.message });
-
-      db.get(sqlItens, params, (err3, itensRow) => {
-        if (err3) itensRow = { itensVendidos: 0 };
-
-        db.all(sqlPorPagamento, params, (err4, porPagamento) => {
-          if (err4) return res.status(500).json({ error: err4.message });
-
-          // ✅ extras úteis para fechamento de caixa
-          const dinheiro = (porPagamento || []).find((x) => x.formaPagamento === "DINHEIRO");
-          const dinheiroTotal = dinheiro ? Number(dinheiro.totalCentavos || 0) : 0;
-          const dinheiroTroco = dinheiro ? Number(dinheiro.trocoCentavos || 0) : 0;
-
-          res.json({
-            resumo,
-            porStatus,
-            porPagamento, // ✅ novo retorno principal
-            caixa: {
-              dinheiroBrutoCentavos: dinheiroTotal,
-              dinheiroTrocoCentavos: dinheiroTroco,
-              dinheiroLiquidoCentavos: Math.max(0, dinheiroTotal), // (troco é entregue ao cliente; controle separado)
-            },
-            itens: itensRow || { itensVendidos: 0 },
-          });
-        });
-      });
+    res.json({
+      resumo: resumo.rows[0] || { pedidos: 0, totalCentavos: 0, ticketMedioCentavos: 0, itensVendidos: 0 },
+      porStatus: porStatus.rows || [],
+      porPagamento: porPagamento.rows || [],
     });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // GET /relatorios/produtos?inicio=YYYY-MM-DD&fim=YYYY-MM-DD&status=ENTREGUE|TODOS
-router.get("/produtos", requireAdmin, (req, res) => {
-  const { inicio, fim, status = "ENTREGUE" } = req.query;
-  const { ini, end } = rangeFromDates(inicio, fim);
+router.get("/produtos", requireAdmin, async (req, res) => {
+  try {
+    const db = getDB();
+    const { inicio, fim, status = "ENTREGUE" } = req.query;
 
-  const where = [];
-  const params = [];
+    const { whereSql, params } = buildWhere({ inicio, fim, status });
 
-  if (ini && end) {
-    where.push("p.criadoEm BETWEEN ? AND ?");
-    params.push(ini, end);
-  } else if (ini) {
-    where.push("p.criadoEm >= ?");
-    params.push(ini);
-  } else if (end) {
-    where.push("p.criadoEm <= ?");
-    params.push(end);
+    const sql = `
+      SELECT
+        pr.id AS "produtoId",
+        pr.nome AS "produtoNome",
+        COALESCE(SUM(pi.qtd),0) AS "qtdVendida",
+        COALESCE(SUM(pi.qtd * pi."precoCentavos"),0) AS "totalCentavos"
+      FROM pedido_itens pi
+      JOIN pedidos p ON p.id = pi."pedidoId"
+      JOIN produtos pr ON pr.id = pi."produtoId"
+      ${whereSql}
+      GROUP BY pr.id, pr.nome
+      ORDER BY "totalCentavos" DESC, "qtdVendida" DESC
+      LIMIT 50
+    `;
+
+    const out = await db.query(sql, params);
+    res.json(out.rows || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  if (status && status !== "TODOS") {
-    where.push("p.status = ?");
-    params.push(status);
-  }
-
-  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
-  const sql = `
-    SELECT
-      pr.id as produtoId,
-      pr.nome as produtoNome,
-      COALESCE(SUM(pi.qtd),0) as qtdVendida,
-      COALESCE(SUM(pi.subtotalCentavos),0) as totalCentavos
-    FROM pedido_itens pi
-    JOIN pedidos p ON p.id = pi.pedidoId
-    JOIN produtos pr ON pr.id = pi.produtoId
-    ${whereSql}
-    GROUP BY pr.id, pr.nome
-    ORDER BY totalCentavos DESC, qtdVendida DESC
-    LIMIT 50
-  `;
-
-  db.all(sql, params, (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows || []);
-  });
 });
 
 // GET /relatorios/pedidos?inicio=YYYY-MM-DD&fim=YYYY-MM-DD&status=ENTREGUE|TODOS
-router.get("/pedidos", requireAdmin, (req, res) => {
-  const { inicio, fim, status = "TODOS" } = req.query;
-  const { ini, end } = rangeFromDates(inicio, fim);
+router.get("/pedidos", requireAdmin, async (req, res) => {
+  try {
+    const db = getDB();
+    const { inicio, fim, status = "TODOS" } = req.query;
 
-  const where = [];
-  const params = [];
+    const { whereSql, params } = buildWhere({ inicio, fim, status });
 
-  if (ini && end) {
-    where.push("p.criadoEm BETWEEN ? AND ?");
-    params.push(ini, end);
-  } else if (ini) {
-    where.push("p.criadoEm >= ?");
-    params.push(ini);
-  } else if (end) {
-    where.push("p.criadoEm <= ?");
-    params.push(end);
+    const sql = `
+      SELECT
+        p.id,
+        p."clienteNome",
+        p.endereco,
+        p.status,
+        p."createdAt",
+        COALESCE(p."formaPagamento", 'NAO_INFORMADO') AS "formaPagamento",
+        COALESCE(SUM(pi.qtd * pi."precoCentavos"),0) AS "totalCentavos"
+      FROM pedidos p
+      LEFT JOIN pedido_itens pi ON pi."pedidoId" = p.id
+      ${whereSql}
+      GROUP BY p.id
+      ORDER BY p.id DESC
+      LIMIT 200
+    `;
+
+    const out = await db.query(sql, params);
+    res.json(out.rows || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-
-  if (status && status !== "TODOS") {
-    where.push("p.status = ?");
-    params.push(status);
-  }
-
-  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
-
-  const sql = `
-    SELECT
-      p.id,
-      p.clienteNome,
-      p.endereco,
-      p.status,
-      p.criadoEm,
-      p.totalCentavos,
-      p.trocoParaCentavos,
-      p.trocoCentavos,
-      COALESCE(p.formaPagamento, 'NAO_INFORMADO') as formaPagamento
-    FROM pedidos p
-    ${whereSql}
-    ORDER BY p.id DESC
-    LIMIT 200
-  `;
-
-  db.all(sql, params, (err, rows) => {
-    if (err) return res.status(500).json({ error: err.message });
-    res.json(rows || []);
-  });
 });
 
 module.exports = router;
