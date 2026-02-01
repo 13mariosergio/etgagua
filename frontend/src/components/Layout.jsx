@@ -22,14 +22,21 @@ function NavLinks({ user }) {
       <>
         <AppLink to="/admin" ariaLabel="Admin">Admin</AppLink>
         <AppLink to="/atendente" ariaLabel="Atendente">Atendente</AppLink>
+        <AppLink to="/clientes" ariaLabel="Clientes">Clientes</AppLink>
         <AppLink to="/entregador" ariaLabel="Entregador">Entregador</AppLink>
         <AppLink to="/relatorios" ariaLabel="Relatórios">Relatórios</AppLink>
       </>
     );
   }
 
-  if (user.role === "ATENDENTE") {
-    return <AppLink to="/atendente" ariaLabel="Atendente">Atendente</AppLink>;
+ if (user.role === "ATENDENTE") {
+  return (
+    <>
+      <AppLink to="/atendente" ariaLabel="Atendente">Atendente</AppLink>
+      <AppLink to="/clientes" ariaLabel="Clientes">Clientes</AppLink>
+    </>
+  );
+}
   }
 
   if (user.role === "ENTREGADOR") {
