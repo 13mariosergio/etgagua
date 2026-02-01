@@ -21,12 +21,20 @@ async function initDB() {
 
     // Tabela de produtos
     await client.query(`
-      CREATE TABLE IF NOT EXISTS produtos (
-        id SERIAL PRIMARY KEY,
-        nome TEXT NOT NULL,
-        precoCentavos INTEGER NOT NULL
-      )
-    `);
+  CREATE TABLE IF NOT EXISTS produtos (
+    id SERIAL PRIMARY KEY,
+    nome TEXT NOT NULL,
+    precoCentavos INTEGER NOT NULL,
+    ativo INTEGER DEFAULT 1
+  )
+`);
+
+// Adicionar coluna ativo se não existir (para tabelas já criadas)
+await client.query(`
+  ALTER TABLE produtos 
+  ADD COLUMN IF NOT EXISTS ativo INTEGER DEFAULT 1
+`);
+    
 
     // Tabela de pedidos
     await client.query(`
