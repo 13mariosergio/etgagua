@@ -38,7 +38,7 @@ app.get("/produtos", requireAuth, async (req, res) => {
   try {
     const db = getDB();
     const result = await db.query(
-      "SELECT id, nome, precoCentavos FROM produtos ORDER BY id DESC"
+      "SELECT id, nome, precoCentavos FROM produtos WHERE ativo = 1 ORDER BY id DESC" // ← FILTRO AQUI
     );
     res.json(result.rows);
   } catch (err) {
