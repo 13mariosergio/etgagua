@@ -17,9 +17,11 @@
     "dotenv": "^16.4.7",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.3",
-    "sqlite3": "^5.1.7"
+    "pg": "^8.11.3"
   },
+  
   "devDependencies": {
     "nodemon": "^3.0.3"
   }
+  
 }
