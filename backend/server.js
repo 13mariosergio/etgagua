@@ -3,19 +3,19 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcrypt");
+
 const { signToken, requireAuth, requireRole } = require("./auth");
 const { initDB, getDB } = require("./db-postgres");
 const relatoriosRoutes = require("./relatorios");
 
 const app = express();
-
 const PORT = process.env.PORT || 3333;
 const HOST = process.env.HOST || "0.0.0.0";
 
 app.use(cors());
 app.use(express.json());
 
-// ========= helpers =========
+// helpers
 function parseBool(value, fallback) {
   if (value === undefined) return fallback;
   if (typeof value === "boolean") return value;
@@ -28,33 +28,35 @@ function parseBool(value, fallback) {
   return fallback;
 }
 
-// Inicializar banco
+// init db
 initDB().catch((err) => {
   console.error("Erro fatal ao inicializar DB:", err);
   process.exit(1);
 });
 
-// Health check
+// health
 app.get("/", (req, res) => {
   res.json({ ok: true, name: "ETGÁGUA Backend", time: new Date().toISOString() });
 });
-
 app.get("/health", (req, res) => {
   res.json({ ok: true, name: "ETGÁGUA Backend", time: new Date().toISOString() });
 });
 
-// Relatórios
+// relatorios (admin)
 app.use("/relatorios", requireAuth, relatoriosRoutes);
 
 // =========================
-// PRODUTOS (apenas ativos)
+// PRODUTOS (somente ativos)
 // =========================
 app.get("/produtos", requireAuth, async (req, res) => {
   try {
     const db = getDB();
-    const result = await db.query(
-      'SELECT id, nome, "precoCentavos" FROM produtos WHERE ativo = true ORDER BY id DESC'
-    );
+    const result = await db.query(`
+      SELECT id, nome, precocentavos AS "precoCentavos"
+      FROM produtos
+      WHERE ativo = true
+      ORDER BY id DESC
+    `);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -66,7 +68,6 @@ app.get("/produtos", requireAuth, async (req, res) => {
 // =========================
 app.post("/auth/login", async (req, res) => {
   const { username, password } = req.body || {};
-
   if (!username || !password) {
     return res.status(400).json({ error: "username e password são obrigatórios" });
   }
@@ -74,7 +75,7 @@ app.post("/auth/login", async (req, res) => {
   try {
     const db = getDB();
     const result = await db.query(
-      "SELECT id, username, passwordHash, role FROM users WHERE username = $1",
+      "SELECT id, username, passwordhash, role FROM users WHERE username = $1",
       [username]
     );
 
@@ -123,15 +124,13 @@ app.post("/admin/users", requireAuth, requireRole("ADMIN"), async (req, res) => 
     const db = getDB();
 
     const result = await db.query(
-      "INSERT INTO users (username, passwordHash, role) VALUES ($1, $2, $3) RETURNING id, username, role",
+      "INSERT INTO users (username, passwordhash, role) VALUES ($1, $2, $3) RETURNING id, username, role",
       [username, passwordHash, role]
     );
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    if (err.code === "23505") {
-      return res.status(409).json({ error: "username já existe" });
-    }
+    if (err.code === "23505") return res.status(409).json({ error: "username já existe" });
     res.status(500).json({ error: err.message });
   }
 });
@@ -142,17 +141,19 @@ app.post("/admin/users", requireAuth, requireRole("ADMIN"), async (req, res) => 
 app.get("/admin/produtos", requireAuth, requireRole("ADMIN"), async (req, res) => {
   try {
     const db = getDB();
-    const result = await db.query("SELECT * FROM produtos ORDER BY id DESC");
+    const result = await db.query(`
+      SELECT id, nome, precocentavos AS "precoCentavos", ativo
+      FROM produtos
+      ORDER BY id DESC
+    `);
     res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ✅ cria produto ativo por padrão (ativo = true)
 app.post("/admin/produtos", requireAuth, requireRole("ADMIN"), async (req, res) => {
   const { nome, precoCentavos, ativo } = req.body || {};
-
   if (!nome) return res.status(400).json({ error: "nome é obrigatório" });
 
   let precoFinal = Number(precoCentavos);
@@ -160,13 +161,14 @@ app.post("/admin/produtos", requireAuth, requireRole("ADMIN"), async (req, res) 
   if (!Number.isInteger(precoFinal)) precoFinal = Math.round(precoFinal);
   if (precoFinal < 0) return res.status(400).json({ error: "precoCentavos não pode ser negativo" });
 
-  // ✅ se não vier "ativo", nasce true
-  const ativoFinal = parseBool(ativo, true);
+  const ativoFinal = parseBool(ativo, true); // ✅ nasce ativo por padrão
 
   try {
     const db = getDB();
     const result = await db.query(
-      "INSERT INTO produtos (nome, precoCentavos, ativo) VALUES ($1, $2, $3) RETURNING *",
+      `INSERT INTO produtos (nome, precocentavos, ativo)
+       VALUES ($1, $2, $3)
+       RETURNING id, nome, precocentavos AS "precoCentavos", ativo`,
       [nome, precoFinal, ativoFinal]
     );
     res.status(201).json(result.rows[0]);
@@ -175,7 +177,6 @@ app.post("/admin/produtos", requireAuth, requireRole("ADMIN"), async (req, res) 
   }
 });
 
-// ✅ atualiza nome, preço e ativo (sem “voltar” sozinho)
 app.patch("/admin/produtos/:id", requireAuth, requireRole("ADMIN"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "id inválido" });
@@ -184,7 +185,6 @@ app.patch("/admin/produtos/:id", requireAuth, requireRole("ADMIN"), async (req, 
 
   try {
     const db = getDB();
-
     const atual = await db.query("SELECT * FROM produtos WHERE id = $1", [id]);
     if (atual.rows.length === 0) return res.status(404).json({ error: "Produto não encontrado" });
 
@@ -192,8 +192,7 @@ app.patch("/admin/produtos/:id", requireAuth, requireRole("ADMIN"), async (req, 
 
     const nomeFinal = nome ?? row.nome;
 
-    let precoFinal =
-      precoCentavos === undefined ? Number(row.precocentavos) : Number(precoCentavos);
+    let precoFinal = precoCentavos === undefined ? Number(row.precocentavos) : Number(precoCentavos);
     if (!Number.isFinite(precoFinal)) precoFinal = Number(row.precocentavos);
     if (!Number.isInteger(precoFinal)) precoFinal = Math.round(precoFinal);
     if (precoFinal < 0) return res.status(400).json({ error: "precoCentavos não pode ser negativo" });
@@ -201,11 +200,28 @@ app.patch("/admin/produtos/:id", requireAuth, requireRole("ADMIN"), async (req, 
     const ativoFinal = parseBool(ativo, row.ativo);
 
     const result = await db.query(
-      "UPDATE produtos SET nome = $1, precoCentavos = $2, ativo = $3 WHERE id = $4 RETURNING *",
+      `UPDATE produtos
+       SET nome = $1, precocentavos = $2, ativo = $3
+       WHERE id = $4
+       RETURNING id, nome, precocentavos AS "precoCentavos", ativo`,
       [nomeFinal, precoFinal, ativoFinal, id]
     );
 
     res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/admin/produtos/:id", requireAuth, requireRole("ADMIN"), async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "id inválido" });
+
+  try {
+    const db = getDB();
+    const result = await db.query("DELETE FROM produtos WHERE id = $1 RETURNING id", [id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "Produto não encontrado" });
+    res.json({ ok: true, id: result.rows[0].id });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -228,17 +244,31 @@ app.get("/pedidos", requireAuth, async (req, res) => {
 
     const ids = pedidos.rows.map((p) => p.id);
     const itens = await db.query(
-      'SELECT * FROM pedido_itens WHERE "pedidoId" = ANY($1) ORDER BY id ASC',
+      "SELECT * FROM pedido_itens WHERE pedidoid = ANY($1) ORDER BY id ASC",
       [ids]
     );
 
     const map = new Map();
     for (const it of itens.rows) {
       if (!map.has(it.pedidoid)) map.set(it.pedidoid, []);
-      map.get(it.pedidoid).push(it);
+      map.get(it.pedidoid).push({
+        ...it,
+        pedidoId: it.pedidoid,
+        produtoId: it.produtoid,
+        precoCentavos: it.precocentavos,
+      });
     }
 
-    const out = pedidos.rows.map((p) => ({ ...p, itens: map.get(p.id) || [] }));
+    const out = pedidos.rows.map((p) => ({
+      ...p,
+      clienteNome: p.clientenome,
+      formaPagamento: p.formapagamento,
+      trocoParaCentavos: p.trocoparacentavos,
+      createdAt: p.createdat,
+      entregadorId: p.entregadorid,
+      itens: map.get(p.id) || [],
+    }));
+
     res.json(out);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -246,16 +276,14 @@ app.get("/pedidos", requireAuth, async (req, res) => {
 });
 
 // =========================
-// CRIAR PEDIDO (só com produtos ativos)
+// CRIAR PEDIDO (só produtos ativos)
 // =========================
 app.post("/pedidos", requireAuth, async (req, res) => {
-  const { clienteNome, telefone, endereco, observacao, itens, trocoParaCentavos, formaPagamento } =
-    req.body || {};
+  const { clienteNome, telefone, endereco, observacao, itens, trocoParaCentavos, formaPagamento } = req.body || {};
 
   if (!clienteNome || !endereco) {
     return res.status(400).json({ error: "clienteNome e endereco são obrigatórios" });
   }
-
   if (!Array.isArray(itens) || itens.length === 0) {
     return res.status(400).json({ error: "itens é obrigatório" });
   }
@@ -267,13 +295,7 @@ app.post("/pedidos", requireAuth, async (req, res) => {
 
   const parsedItens = itens
     .map((i) => ({ produtoId: Number(i.produtoId), qtd: Number(i.qtd) }))
-    .filter(
-      (i) =>
-        Number.isInteger(i.produtoId) &&
-        i.produtoId > 0 &&
-        Number.isInteger(i.qtd) &&
-        i.qtd > 0
-    );
+    .filter((i) => Number.isInteger(i.produtoId) && i.produtoId > 0 && Number.isInteger(i.qtd) && i.qtd > 0);
 
   if (parsedItens.length !== itens.length) {
     return res.status(400).json({ error: "itens inválidos" });
@@ -283,9 +305,12 @@ app.post("/pedidos", requireAuth, async (req, res) => {
     const db = getDB();
     const ids = parsedItens.map((i) => i.produtoId);
 
-    // ✅ só produtos ativos
     const produtos = await db.query(
-      'SELECT id, nome, "precoCentavos" FROM produtos WHERE id = ANY($1) AND ativo = true',
+      `
+      SELECT id, nome, precocentavos AS "precoCentavos"
+      FROM produtos
+      WHERE id = ANY($1) AND ativo = true
+      `,
       [ids]
     );
 
@@ -295,20 +320,17 @@ app.post("/pedidos", requireAuth, async (req, res) => {
 
     const mapProd = new Map(produtos.rows.map((p) => [p.id, p]));
 
-    let trocoPara =
-      trocoParaCentavos === null || trocoParaCentavos === undefined
-        ? null
-        : Number(trocoParaCentavos);
+    let trocoPara = trocoParaCentavos === null || trocoParaCentavos === undefined ? null : Number(trocoParaCentavos);
     if (forma !== "DINHEIRO") trocoPara = null;
 
     const client = await db.connect();
-
     try {
       await client.query("BEGIN");
 
       const pedidoResult = await client.query(
-        `INSERT INTO pedidos (clienteNome, telefone, endereco, observacao, status, formaPagamento, trocoParaCentavos)
-         VALUES ($1, $2, $3, $4, 'ABERTO', $5, $6) RETURNING *`,
+        `INSERT INTO pedidos (clientenome, telefone, endereco, observacao, status, formapagamento, trocoparacentavos)
+         VALUES ($1, $2, $3, $4, 'ABERTO', $5, $6)
+         RETURNING *`,
         [clienteNome, telefone || "", endereco, observacao || "", forma, trocoPara]
       );
 
@@ -316,10 +338,11 @@ app.post("/pedidos", requireAuth, async (req, res) => {
 
       for (const it of parsedItens) {
         const p = mapProd.get(it.produtoId);
-        const precoUnit = Number(p.precocentavos);
+        const precoUnit = Number(p.precoCentavos);
 
         await client.query(
-          'INSERT INTO pedido_itens ("pedidoId", "produtoId", qtd, "precoCentavos") VALUES ($1, $2, $3, $4)',
+          `INSERT INTO pedido_itens (pedidoid, produtoid, qtd, precocentavos)
+           VALUES ($1, $2, $3, $4)`,
           [pedidoId, it.produtoId, it.qtd, precoUnit]
         );
       }
@@ -327,12 +350,25 @@ app.post("/pedidos", requireAuth, async (req, res) => {
       await client.query("COMMIT");
 
       const final = await db.query("SELECT * FROM pedidos WHERE id = $1", [pedidoId]);
-      const itensResult = await db.query(
-        'SELECT * FROM pedido_itens WHERE "pedidoId" = $1',
-        [pedidoId]
-      );
+      const itensResult = await db.query("SELECT * FROM pedido_itens WHERE pedidoid = $1", [pedidoId]);
 
-      res.status(201).json({ ...final.rows[0], itens: itensResult.rows });
+      const outPedido = final.rows[0];
+      const outItens = itensResult.rows.map((it) => ({
+        ...it,
+        pedidoId: it.pedidoid,
+        produtoId: it.produtoid,
+        precoCentavos: it.precocentavos,
+      }));
+
+      res.status(201).json({
+        ...outPedido,
+        clienteNome: outPedido.clientenome,
+        formaPagamento: outPedido.formapagamento,
+        trocoParaCentavos: outPedido.trocoparacentavos,
+        createdAt: outPedido.createdat,
+        entregadorId: outPedido.entregadorid,
+        itens: outItens,
+      });
     } catch (err) {
       await client.query("ROLLBACK");
       throw err;
@@ -345,21 +381,15 @@ app.post("/pedidos", requireAuth, async (req, res) => {
 });
 
 // =========================
-// ATUALIZAR STATUS
+// ATUALIZAR STATUS DO PEDIDO
 // =========================
 app.patch("/pedidos/:id/status", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
-  const { status } = req.body;
-
+  const { status } = req.body || {};
   const allowed = ["ABERTO", "EM_ROTA", "ENTREGUE", "CANCELADO"];
 
-  if (!Number.isInteger(id) || id <= 0) {
-    return res.status(400).json({ error: "id inválido" });
-  }
-
-  if (!status || !allowed.includes(status)) {
-    return res.status(400).json({ error: "status inválido", allowed });
-  }
+  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "id inválido" });
+  if (!status || !allowed.includes(status)) return res.status(400).json({ error: "status inválido", allowed });
 
   try {
     const db = getDB();
@@ -367,12 +397,17 @@ app.patch("/pedidos/:id/status", requireAuth, async (req, res) => {
       "UPDATE pedidos SET status = $1 WHERE id = $2 RETURNING *",
       [status, id]
     );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Pedido não encontrado" });
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Pedido não encontrado" });
-    }
-
-    res.json(result.rows[0]);
+    const p = result.rows[0];
+    res.json({
+      ...p,
+      clienteNome: p.clientenome,
+      formaPagamento: p.formapagamento,
+      trocoParaCentavos: p.trocoparacentavos,
+      createdAt: p.createdat,
+      entregadorId: p.entregadorid,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

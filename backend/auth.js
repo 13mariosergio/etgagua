@@ -4,7 +4,7 @@ const { getDB } = require("./db-postgres");
 const JWT_SECRET = process.env.JWT_SECRET || "ETGAGUA_DEV_SECRET_CHANGE_ME";
 
 function signToken(user) {
-  // ✅ NÃO colocar role no token (senão “congela” quando você muda o papel)
+  // ✅ NÃO colocar role no token (evita “congelar” role)
   return jwt.sign(
     { sub: user.id, username: user.username },
     JWT_SECRET,
@@ -21,7 +21,7 @@ async function requireAuth(req, res, next) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
 
-    // ✅ Carrega usuário atual do banco (role atualizado)
+    // ✅ pega role atual do banco SEMPRE
     const db = getDB();
     const result = await db.query(
       "SELECT id, username, role FROM users WHERE id = $1",

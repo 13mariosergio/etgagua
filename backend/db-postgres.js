@@ -11,6 +11,7 @@ async function initDB() {
   const client = await pool.connect();
 
   try {
+    // USERS
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -20,6 +21,7 @@ async function initDB() {
       )
     `);
 
+    // PRODUTOS
     await client.query(`
       CREATE TABLE IF NOT EXISTS produtos (
         id SERIAL PRIMARY KEY,
@@ -28,17 +30,17 @@ async function initDB() {
       )
     `);
 
-    // ✅ garante coluna ativo
+    // ✅ ATIVO (BOOLEAN)
     await client.query(`
       ALTER TABLE produtos
       ADD COLUMN IF NOT EXISTS ativo BOOLEAN DEFAULT true
     `);
 
-    // ✅ garante que os antigos ficam ativos
     await client.query(`
       UPDATE produtos SET ativo = true WHERE ativo IS NULL
     `);
 
+    // PEDIDOS
     await client.query(`
       CREATE TABLE IF NOT EXISTS pedidos (
         id SERIAL PRIMARY KEY,
@@ -56,6 +58,7 @@ async function initDB() {
       )
     `);
 
+    // ITENS
     await client.query(`
       CREATE TABLE IF NOT EXISTS pedido_itens (
         id SERIAL PRIMARY KEY,
@@ -66,7 +69,7 @@ async function initDB() {
       )
     `);
 
-    // admin padrão
+    // ADMIN PADRÃO
     const checkAdmin = await client.query(`SELECT 1 FROM users WHERE username = 'admin'`);
     if (checkAdmin.rows.length === 0) {
       const bcrypt = require("bcrypt");
@@ -75,9 +78,10 @@ async function initDB() {
         `INSERT INTO users (username, passwordHash, role) VALUES ($1, $2, $3)`,
         ["admin", hash, "ADMIN"]
       );
+      console.log("✅ Usuário admin criado");
     }
 
-    // produtos padrão
+    // PRODUTOS PADRÃO
     const checkProdutos = await client.query(`SELECT COUNT(*) AS count FROM produtos`);
     if (parseInt(checkProdutos.rows[0].count, 10) === 0) {
       await client.query(`
@@ -86,9 +90,13 @@ async function initDB() {
         ('Vasilhame 20L (vazio)', 3500, true),
         ('Água 20L (troca)', 1050, true)
       `);
+      console.log("✅ Produtos padrão criados");
     }
 
     console.log("✅ Banco PostgreSQL inicializado com sucesso!");
+  } catch (err) {
+    console.error("❌ Erro ao inicializar banco:", err);
+    throw err;
   } finally {
     client.release();
   }

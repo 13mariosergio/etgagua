@@ -13,14 +13,13 @@ function buildWhere({ inicio, fim, status }) {
   const where = [];
   const params = [];
 
-  // createdAt é timestamp no Postgres
   if (inicio) {
     params.push(`${inicio} 00:00:00`);
-    where.push(`p."createdAt" >= $${params.length}`);
+    where.push(`p.createdat >= $${params.length}`);
   }
   if (fim) {
     params.push(`${fim} 23:59:59`);
-    where.push(`p."createdAt" <= $${params.length}`);
+    where.push(`p.createdat <= $${params.length}`);
   }
   if (status && status !== "TODOS") {
     params.push(status);
@@ -39,18 +38,17 @@ router.get("/resumo", requireAdmin, async (req, res) => {
 
     const { whereSql, params } = buildWhere({ inicio, fim, status });
 
-    // totalCentavos calculado por itens
     const sqlResumo = `
       SELECT
         COUNT(DISTINCT p.id) AS pedidos,
-        COALESCE(SUM(pi.qtd * pi."precoCentavos"), 0) AS totalCentavos,
+        COALESCE(SUM(pi.qtd * pi.precocentavos), 0) AS totalCentavos,
         CASE
           WHEN COUNT(DISTINCT p.id) = 0 THEN 0
-          ELSE CAST(ROUND(1.0 * COALESCE(SUM(pi.qtd * pi."precoCentavos"),0) / COUNT(DISTINCT p.id)) AS INTEGER)
+          ELSE CAST(ROUND(1.0 * COALESCE(SUM(pi.qtd * pi.precocentavos),0) / COUNT(DISTINCT p.id)) AS INTEGER)
         END AS ticketMedioCentavos,
         COALESCE(SUM(pi.qtd),0) AS itensVendidos
       FROM pedidos p
-      LEFT JOIN pedido_itens pi ON pi."pedidoId" = p.id
+      LEFT JOIN pedido_itens pi ON pi.pedidoid = p.id
       ${whereSql}
     `;
 
@@ -58,9 +56,9 @@ router.get("/resumo", requireAdmin, async (req, res) => {
       SELECT
         p.status,
         COUNT(DISTINCT p.id) AS qtd,
-        COALESCE(SUM(pi.qtd * pi."precoCentavos"), 0) AS totalCentavos
+        COALESCE(SUM(pi.qtd * pi.precocentavos), 0) AS totalCentavos
       FROM pedidos p
-      LEFT JOIN pedido_itens pi ON pi."pedidoId" = p.id
+      LEFT JOIN pedido_itens pi ON pi.pedidoid = p.id
       ${whereSql}
       GROUP BY p.status
       ORDER BY qtd DESC
@@ -68,13 +66,13 @@ router.get("/resumo", requireAdmin, async (req, res) => {
 
     const sqlPorPagamento = `
       SELECT
-        COALESCE(p."formaPagamento", 'NAO_INFORMADO') AS formaPagamento,
+        COALESCE(p.formapagamento, 'NAO_INFORMADO') AS "formaPagamento",
         COUNT(DISTINCT p.id) AS qtd,
-        COALESCE(SUM(pi.qtd * pi."precoCentavos"), 0) AS totalCentavos
+        COALESCE(SUM(pi.qtd * pi.precocentavos), 0) AS totalCentavos
       FROM pedidos p
-      LEFT JOIN pedido_itens pi ON pi."pedidoId" = p.id
+      LEFT JOIN pedido_itens pi ON pi.pedidoid = p.id
       ${whereSql}
-      GROUP BY COALESCE(p."formaPagamento", 'NAO_INFORMADO')
+      GROUP BY COALESCE(p.formapagamento, 'NAO_INFORMADO')
       ORDER BY totalCentavos DESC, qtd DESC
     `;
 
@@ -107,10 +105,10 @@ router.get("/produtos", requireAdmin, async (req, res) => {
         pr.id AS "produtoId",
         pr.nome AS "produtoNome",
         COALESCE(SUM(pi.qtd),0) AS "qtdVendida",
-        COALESCE(SUM(pi.qtd * pi."precoCentavos"),0) AS "totalCentavos"
+        COALESCE(SUM(pi.qtd * pi.precocentavos),0) AS "totalCentavos"
       FROM pedido_itens pi
-      JOIN pedidos p ON p.id = pi."pedidoId"
-      JOIN produtos pr ON pr.id = pi."produtoId"
+      JOIN pedidos p ON p.id = pi.pedidoid
+      JOIN produtos pr ON pr.id = pi.produtoid
       ${whereSql}
       GROUP BY pr.id, pr.nome
       ORDER BY "totalCentavos" DESC, "qtdVendida" DESC
@@ -135,14 +133,14 @@ router.get("/pedidos", requireAdmin, async (req, res) => {
     const sql = `
       SELECT
         p.id,
-        p."clienteNome",
+        p.clientenome AS "clienteNome",
         p.endereco,
         p.status,
-        p."createdAt",
-        COALESCE(p."formaPagamento", 'NAO_INFORMADO') AS "formaPagamento",
-        COALESCE(SUM(pi.qtd * pi."precoCentavos"),0) AS "totalCentavos"
+        p.createdat AS "createdAt",
+        COALESCE(p.formapagamento, 'NAO_INFORMADO') AS "formaPagamento",
+        COALESCE(SUM(pi.qtd * pi.precocentavos),0) AS "totalCentavos"
       FROM pedidos p
-      LEFT JOIN pedido_itens pi ON pi."pedidoId" = p.id
+      LEFT JOIN pedido_itens pi ON pi.pedidoid = p.id
       ${whereSql}
       GROUP BY p.id
       ORDER BY p.id DESC
