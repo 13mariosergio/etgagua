@@ -44,7 +44,7 @@ function NavLinks({ user }) {
   }
 
   return <AppLink to="/login">Login</AppLink>;
-}
+
 
 export default function Layout() {
   const { user, logout } = useAuth();
