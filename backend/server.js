@@ -2,7 +2,6 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const db = require("./db");
 const bcrypt = require("bcrypt");
 const { signToken, requireAuth, requireRole } = require("./auth");
 const { initDB, getDB } = require("./db-postgres");
