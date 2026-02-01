@@ -14,15 +14,21 @@ async function initDB() {
     // =========================
     // Tabela de usuários
     // =========================
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username TEXT UNIQUE NOT NULL,
-        passwordHash TEXT NOT NULL,
-        role TEXT NOT NULL CHECK (role IN ('ADMIN', 'ATENDENTE', 'ENTREGADOR'))
-      )
-    `);
-    console.log('✅ Tabela users criada/verificada');
+// NOVA TABELA DE CLIENTES
+await client.query(`
+  CREATE TABLE IF NOT EXISTS clientes (
+    id SERIAL PRIMARY KEY,
+    codigo TEXT UNIQUE NOT NULL,
+    nome TEXT NOT NULL,
+    endereco TEXT NOT NULL,
+    pontoReferencia TEXT,
+    telefone TEXT,
+    cpf TEXT,
+    ativo BOOLEAN DEFAULT true,
+    createdAt TIMESTAMP DEFAULT NOW()
+  )
+`);
+console.log('✅ Tabela clientes criada');
 
     // =========================
     // Tabela de produtos COM COLUNA ATIVO

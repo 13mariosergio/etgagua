@@ -412,6 +412,72 @@ app.patch("/pedidos/:id/status", requireAuth, async (req, res) => {
   }
 });
 
+// ===== CLIENTES =====
+app.get("/clientes", requireAuth, async (req, res) => {
+  try {
+    const db = getDB();
+    const result = await db.query(`
+      SELECT * FROM clientes WHERE ativo = true ORDER BY nome
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/clientes", requireAuth, async (req, res) => {
+  const { nome, endereco, pontoReferencia, telefone, cpf } = req.body;
+  
+  try {
+    const db = getDB();
+    const codigo = `CLI${Date.now()}`;
+    
+    const result = await db.query(`
+      INSERT INTO clientes (codigo, nome, endereco, pontoReferencia, telefone, cpf)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [codigo, nome, endereco, pontoReferencia, telefone, cpf]);
+    
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch("/clientes/:id", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  const { nome, endereco, pontoReferencia, telefone, cpf } = req.body;
+
+  try {
+    const db = getDB();
+    const result = await db.query(`
+      UPDATE clientes 
+      SET nome = COALESCE($1, nome),
+          endereco = COALESCE($2, endereco),
+          pontoReferencia = COALESCE($3, pontoReferencia),
+          telefone = COALESCE($4, telefone),
+          cpf = COALESCE($5, cpf)
+      WHERE id = $6
+      RETURNING *
+    `, [nome, endereco, pontoReferencia, telefone, cpf, id]);
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/clientes/:id", requireAuth, async (req, res) => {
+  const id = Number(req.params.id);
+  try {
+    const db = getDB();
+    await db.query("UPDATE clientes SET ativo = false WHERE id = $1", [id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, HOST, () => {
   console.log(`🚀 ETGÁGUA Backend rodando em http://${HOST}:${PORT}`);
   console.log(`📡 Acesse de outros dispositivos usando o IP da máquina na porta ${PORT}`);
