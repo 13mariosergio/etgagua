@@ -8,7 +8,11 @@
     "start": "node server.js",
     "build": "echo Build OK"
   },
-  "keywords": ["delivery", "agua", "water"],
+  "keywords": [
+    "delivery",
+    "agua",
+    "water"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -19,9 +23,7 @@
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.11.3"
   },
-  
   "devDependencies": {
     "nodemon": "^3.0.3"
   }
-  
 }
