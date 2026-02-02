@@ -56,8 +56,8 @@ ReactDOM.createRoot(document.getElementById("root")).render(
             <Route
               path="/clientes"
               element={
-                <RequireRole allow={["ATENDENTE", "ADMIN"]}>
-                  <Atendente />
+                <RequireRole allow={["CLIENTES", "ADMIN"]}>
+                  <Clientes />
                 </RequireRole>
               }
             />

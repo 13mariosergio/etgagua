@@ -22,7 +22,7 @@ function NavLinks({ user }) {
       <>
         <AppLink to="/admin" ariaLabel="Admin">Admin</AppLink>
         <AppLink to="/atendente" ariaLabel="Atendente">Atendente</AppLink>
-        <AppLink to="/clientes" ariaLabel="Clientes">Clientes</AppLink>
+        <AppLink to="/clientes" ariaLabel="Atendente">Clientes</AppLink>
         <AppLink to="/entregador" ariaLabel="Entregador">Entregador</AppLink>
         <AppLink to="/relatorios" ariaLabel="Relatórios">Relatórios</AppLink>
       </>
@@ -33,7 +33,7 @@ function NavLinks({ user }) {
     return (
       <>
         <AppLink to="/atendente" ariaLabel="Atendente">Atendente</AppLink>
-        <AppLink to="/clientes" ariaLabel="Clientes">Clientes</AppLink>
+        <AppLink to="/clientes" ariaLabel="Atendente">Clientes</AppLink>
       </>
     );
   }
