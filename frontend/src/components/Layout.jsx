@@ -29,14 +29,13 @@ function NavLinks({ user }) {
     );
   }
 
- if (user.role === "ATENDENTE") {
-  return (
-    <>
-      <AppLink to="/atendente" ariaLabel="Atendente">Atendente</AppLink>
-      <AppLink to="/clientes" ariaLabel="Clientes">Clientes</AppLink>
-    </>
-  );
-}
+  if (user.role === "ATENDENTE") {
+    return (
+      <>
+        <AppLink to="/atendente" ariaLabel="Atendente">Atendente</AppLink>
+        <AppLink to="/clientes" ariaLabel="Clientes">Clientes</AppLink>
+      </>
+    );
   }
 
   if (user.role === "ENTREGADOR") {
@@ -44,7 +43,7 @@ function NavLinks({ user }) {
   }
 
   return <AppLink to="/login">Login</AppLink>;
-
+}
 
 export default function Layout() {
   const { user, logout } = useAuth();
