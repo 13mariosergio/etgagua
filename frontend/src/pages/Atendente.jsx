@@ -26,6 +26,11 @@ export default function Atendente() {
   const [trocoPara, setTrocoPara] = useState("");
   const [salvando, setSalvando] = useState(false);
 
+  // 🆕 AUTOCOMPLETE DE CLIENTES
+  const [clientes, setClientes] = useState([]);
+  const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
+  const [clientesFiltrados, setClientesFiltrados] = useState([]);
+
   async function carregarProdutos() {
     try {
       const { data } = await api.get("/produtos");
@@ -38,10 +43,44 @@ export default function Atendente() {
     }
   }
 
+  // 🆕 CARREGAR CLIENTES
+  async function carregarClientes() {
+    try {
+      const { data } = await api.get("/clientes");
+      setClientes(Array.isArray(data) ? data : []);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   useEffect(() => {
     carregarProdutos();
+    carregarClientes();
     // eslint-disable-next-line
   }, []);
+
+  // 🆕 FILTRAR CLIENTES ENQUANTO DIGITA
+  useEffect(() => {
+    if (clienteNome.length >= 2) {
+      const filtrados = clientes.filter(c =>
+        c.nome.toLowerCase().includes(clienteNome.toLowerCase())
+      );
+      setClientesFiltrados(filtrados);
+      setMostrarSugestoes(filtrados.length > 0);
+    } else {
+      setClientesFiltrados([]);
+      setMostrarSugestoes(false);
+    }
+  }, [clienteNome, clientes]);
+
+  // 🆕 SELECIONAR CLIENTE DO AUTOCOMPLETE
+  function selecionarCliente(cliente) {
+    setClienteNome(cliente.nome);
+    setEndereco(cliente.endereco);
+    setTelefone(cliente.telefone || "");
+    setObservacao(cliente.pontoreferencia || "");
+    setMostrarSugestoes(false);
+  }
 
   const totalPreviewCentavos = useMemo(() => {
     if (!Array.isArray(produtos) || produtos.length === 0) return 0;
@@ -174,7 +213,63 @@ export default function Atendente() {
         <h3 style={{ marginTop: 0 }}>Novo pedido</h3>
 
         <form onSubmit={criarPedido} style={{ display: "grid", gap: 10 }}>
-          <input placeholder="Nome do cliente *" value={clienteNome} onChange={(e) => setClienteNome(e.target.value)} required />
+          {/* 🆕 CAMPO COM AUTOCOMPLETE */}
+          <div style={{ position: "relative" }}>
+            <input
+              placeholder="Nome do cliente * (digite para buscar)"
+              value={clienteNome}
+              onChange={(e) => setClienteNome(e.target.value)}
+              onFocus={() => clienteNome.length >= 2 && setMostrarSugestoes(true)}
+              required
+              autoComplete="off"
+            />
+            
+            {/* 🆕 LISTA DE SUGESTÕES */}
+            {mostrarSugestoes && clientesFiltrados.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  background: "#1e293b",
+                  border: "1px solid #3b82f6",
+                  borderRadius: 8,
+                  maxHeight: 200,
+                  overflowY: "auto",
+                  zIndex: 1000,
+                  marginTop: 4,
+                  boxShadow: "0 4px 6px rgba(0,0,0,0.3)"
+                }}
+              >
+                {clientesFiltrados.map((cliente) => (
+                  <div
+                    key={cliente.id}
+                    onClick={() => selecionarCliente(cliente)}
+                    style={{
+                      padding: 12,
+                      cursor: "pointer",
+                      borderBottom: "1px solid rgba(255,255,255,0.1)",
+                      transition: "background 0.2s"
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = "rgba(59, 130, 246, 0.2)"}
+                    onMouseLeave={(e) => e.target.style.background = "transparent"}
+                  >
+                    <div style={{ fontWeight: 700, color: "#3b82f6" }}>{cliente.nome}</div>
+                    <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
+                      📍 {cliente.endereco}
+                    </div>
+                    {cliente.telefone && (
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>
+                        📞 {cliente.telefone}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <input placeholder="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} />
           <input placeholder="Endereço *" value={endereco} onChange={(e) => setEndereco(e.target.value)} required />
           <input placeholder="Observação" value={observacao} onChange={(e) => setObservacao(e.target.value)} />
