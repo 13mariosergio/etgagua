@@ -17,6 +17,7 @@ export default function Atendente() {
   const [clienteNome, setClienteNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [endereco, setEndereco] = useState("");
+  const [pontoReferencia, setPontoReferencia] = useState(""); // 🆕 NOVO CAMPO
   const [observacao, setObservacao] = useState("");
   const [formaPagamento, setFormaPagamento] = useState("DINHEIRO");
   const [produtos, setProdutos] = useState([]);
@@ -26,7 +27,7 @@ export default function Atendente() {
   const [trocoPara, setTrocoPara] = useState("");
   const [salvando, setSalvando] = useState(false);
 
-  // 🆕 AUTOCOMPLETE DE CLIENTES
+  // AUTOCOMPLETE DE CLIENTES
   const [clientes, setClientes] = useState([]);
   const [mostrarSugestoes, setMostrarSugestoes] = useState(false);
   const [clientesFiltrados, setClientesFiltrados] = useState([]);
@@ -43,7 +44,6 @@ export default function Atendente() {
     }
   }
 
-  // 🆕 CARREGAR CLIENTES
   async function carregarClientes() {
     try {
       const { data } = await api.get("/clientes");
@@ -59,7 +59,6 @@ export default function Atendente() {
     // eslint-disable-next-line
   }, []);
 
-  // 🆕 FILTRAR CLIENTES ENQUANTO DIGITA
   useEffect(() => {
     if (clienteNome.length >= 2) {
       const filtrados = clientes.filter(c =>
@@ -73,12 +72,11 @@ export default function Atendente() {
     }
   }, [clienteNome, clientes]);
 
-  // 🆕 SELECIONAR CLIENTE DO AUTOCOMPLETE
   function selecionarCliente(cliente) {
     setClienteNome(cliente.nome);
     setEndereco(cliente.endereco);
     setTelefone(cliente.telefone || "");
-    setObservacao(cliente.pontoreferencia || "");
+    setPontoReferencia(cliente.pontoreferencia || ""); // 🆕 PREENCHE PONTO DE REFERÊNCIA
     setMostrarSugestoes(false);
   }
 
@@ -158,8 +156,9 @@ export default function Atendente() {
 
     let mensagem = `📋 RESUMO DO PEDIDO\n\n`;
     mensagem += `Cliente: ${clienteNome}\n`;
-    mensagem += `Endereço: ${endereco}\n\n`;
-    mensagem += `💰 VALORES:\n`;
+    mensagem += `Endereço: ${endereco}\n`;
+    if (pontoReferencia) mensagem += `Ponto de referência: ${pontoReferencia}\n`; // 🆕
+    mensagem += `\n💰 VALORES:\n`;
     mensagem += `Total: R$ ${totalReais}\n`;
 
     if (formaPagamento === "DINHEIRO" && tpc) {
@@ -178,7 +177,7 @@ export default function Atendente() {
         clienteNome,
         telefone,
         endereco,
-        observacao,
+        observacao: pontoReferencia ? `${pontoReferencia}${observacao ? ' | ' + observacao : ''}` : observacao, // 🆕 COMBINA PONTO REF + OBS
         itens,
         formaPagamento,
         trocoParaCentavos: tpc,
@@ -189,6 +188,7 @@ export default function Atendente() {
       setClienteNome("");
       setTelefone("");
       setEndereco("");
+      setPontoReferencia(""); // 🆕
       setObservacao("");
       setItens([]);
       setQtd(1);
@@ -213,7 +213,7 @@ export default function Atendente() {
         <h3 style={{ marginTop: 0 }}>Novo pedido</h3>
 
         <form onSubmit={criarPedido} style={{ display: "grid", gap: 10 }}>
-          {/* 🆕 CAMPO COM AUTOCOMPLETE */}
+          {/* CAMPO COM AUTOCOMPLETE */}
           <div style={{ position: "relative" }}>
             <input
               placeholder="Nome do cliente * (digite para buscar)"
@@ -224,7 +224,7 @@ export default function Atendente() {
               autoComplete="off"
             />
             
-            {/* 🆕 LISTA DE SUGESTÕES */}
+            {/* LISTA DE SUGESTÕES */}
             {mostrarSugestoes && clientesFiltrados.length > 0 && (
               <div
                 style={{
@@ -259,6 +259,11 @@ export default function Atendente() {
                     <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
                       📍 {cliente.endereco}
                     </div>
+                    {cliente.pontoreferencia && (
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>
+                        🗺️ {cliente.pontoreferencia}
+                      </div>
+                    )}
                     {cliente.telefone && (
                       <div style={{ fontSize: 12, opacity: 0.7 }}>
                         📞 {cliente.telefone}
@@ -272,7 +277,15 @@ export default function Atendente() {
 
           <input placeholder="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} />
           <input placeholder="Endereço *" value={endereco} onChange={(e) => setEndereco(e.target.value)} required />
-          <input placeholder="Observação" value={observacao} onChange={(e) => setObservacao(e.target.value)} />
+          
+          {/* 🆕 CAMPO PONTO DE REFERÊNCIA */}
+          <input 
+            placeholder="Ponto de referência (ex: Próximo ao mercado)" 
+            value={pontoReferencia} 
+            onChange={(e) => setPontoReferencia(e.target.value)} 
+          />
+          
+          <input placeholder="Observação adicional" value={observacao} onChange={(e) => setObservacao(e.target.value)} />
 
           <div style={{ display: "grid", gap: 6, maxWidth: 320 }}>
             <label style={{ fontSize: 12, opacity: 0.7 }}>Forma de pagamento</label>
