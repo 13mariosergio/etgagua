@@ -425,7 +425,7 @@ app.get("/clientes", requireAuth, async (req, res) => {
         codigo,
         nome,
         endereco,
-        pontoReferencia AS "pontoReferencia",
+        ponto_referencia AS "ponto_referencia",
         telefone,
         cpf,
         ativo,
@@ -443,7 +443,7 @@ app.get("/clientes", requireAuth, async (req, res) => {
 
 // CADASTRAR
 app.post("/clientes", requireAuth, async (req, res) => {
-  const { nome, endereco, pontoReferencia, telefone, cpf } = req.body || {};
+  const { nome, endereco, ponto_referencia, telefone, cpf } = req.body || {};
 
   if (!nome || !endereco) {
     return res.status(400).json({ error: "nome e endereco são obrigatórios" });
@@ -455,15 +455,15 @@ app.post("/clientes", requireAuth, async (req, res) => {
 
     const result = await db.query(
       `
-      INSERT INTO clientes (codigo, nome, endereco, pontoReferencia, telefone, cpf, ativo)
+      INSERT INTO clientes (codigo, nome, endereco, ponto_referencia, telefone, cpf, ativo)
       VALUES ($1, $2, $3, $4, $5, $6, true)
       RETURNING
         id, codigo, nome, endereco,
-        pontoReferencia AS "pontoReferencia",
+        ponto_referencia AS "ponto_referencia",
         telefone, cpf, ativo,
         created_at AS "createdAt"
       `,
-      [codigo, nome, endereco, pontoReferencia || null, telefone || null, cpf || null]
+      [codigo, nome, endereco, ponto_referencia || null, telefone || null, cpf || null]
     );
 
     res.status(201).json(result.rows[0]);
@@ -478,7 +478,7 @@ app.patch("/clientes/:id", requireAuth, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "id inválido" });
 
-  const { nome, endereco, pontoReferencia, telefone, cpf } = req.body || {};
+  const { nome, endereco, ponto_referencia, telefone, cpf } = req.body || {};
 
   try {
     const db = getDB();
@@ -487,17 +487,17 @@ app.patch("/clientes/:id", requireAuth, async (req, res) => {
       UPDATE clientes
       SET nome = COALESCE($1, nome),
           endereco = COALESCE($2, endereco),
-          pontoReferencia = COALESCE($3, pontoReferencia),
+          ponto_referencia = COALESCE($3, ponto_referencia),
           telefone = COALESCE($4, telefone),
           cpf = COALESCE($5, cpf)
       WHERE id = $6
       RETURNING
         id, codigo, nome, endereco,
-        pontoReferencia AS "pontoReferencia",
+        ponto_referencia AS "ponto_referencia",
         telefone, cpf, ativo,
         created_at AS "createdAt"
       `,
-      [nome ?? null, endereco ?? null, pontoReferencia ?? null, telefone ?? null, cpf ?? null, id]
+      [nome ?? null, endereco ?? null, ponto_referencia ?? null, telefone ?? null, cpf ?? null, id]
     );
 
     if (result.rows.length === 0) return res.status(404).json({ error: "Cliente não encontrado" });
