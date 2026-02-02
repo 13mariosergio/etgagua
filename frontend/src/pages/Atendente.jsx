@@ -40,18 +40,29 @@ export default function Atendente() {
 
   useEffect(() => {
     carregarProdutos();
+    // eslint-disable-next-line
   }, []);
 
   const totalPreviewCentavos = useMemo(() => {
+    if (!Array.isArray(produtos) || produtos.length === 0) return 0;
+    if (!Array.isArray(itens) || itens.length === 0) return 0;
+
     let total = 0;
-    
+
     for (const item of itens) {
-      const produto = produtos.find(p => Number(p.id) === Number(item.produtoId));
+      const produtoId = Number(item.produtoId);
+      const produto = produtos.find(p => Number(p.id) === produtoId);
+
       if (produto) {
-        total += Number(produto.precoCentavos) * Number(item.qtd);
+        const preco = Number(produto.precoCentavos);
+        const quantidade = Number(item.qtd);
+        
+        if (!isNaN(preco) && !isNaN(quantidade)) {
+          total += preco * quantidade;
+        }
       }
     }
-    
+
     return total;
   }, [itens, produtos]);
 
