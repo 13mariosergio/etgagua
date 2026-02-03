@@ -526,20 +526,20 @@ app.delete("/clientes/:id", requireAuth, async (req, res) => {
   }
 });
   
-// ROTA DE MIGRAÇÃO - ADICIONAR COLUNA PONTOREFERENCIA
-app.get("/migrate/add-pontoreferencia", requireAuth, requireRole("ADMIN"), async (req, res) => {
+// ROTA DE MIGRAÇÃO - ADICIONAR COLUNA ponto_referencia
+app.get("/migrate/add-ponto_referencia", requireAuth, requireRole("ADMIN"), async (req, res) => {
   try {
     const db = getDB();
     
     // Tentar adicionar a coluna
     await db.query(`
       ALTER TABLE clientes 
-      ADD COLUMN IF NOT EXISTS "pontoReferencia" TEXT
+      ADD COLUMN IF NOT EXISTS "ponto_referencia" TEXT
     `);
     
     res.json({ 
       success: true, 
-      message: "Coluna pontoReferencia adicionada com sucesso!" 
+      message: "Coluna ponto_referencia adicionada com sucesso!" 
     });
   } catch (err) {
     console.error("Erro na migração:", err);
