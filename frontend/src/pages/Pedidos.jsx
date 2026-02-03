@@ -11,6 +11,13 @@ function centavosToBRL(c) {
 function hasMoney(v) {
   return v !== null && v !== undefined && Number(v) > 0;
 }
+function getCentavos(p, ...keys) {
+  for (const k of keys) {
+    const v = p?.[k];
+    if (v !== null && v !== undefined && v !== "") return Number(v);
+  }
+  return 0;
+}
 
 export default function Pedidos({ modo = "GERAL" }) {
   const filtroInicial =
@@ -112,47 +119,48 @@ export default function Pedidos({ modo = "GERAL" }) {
   }
 
   function renderResumoFinanceiro(p, isEntregador = false) {
-    const total = Number(p.totalCentavos || 0);
+  // ✅ aceita total em camelCase ou snake_case
+  const total = getCentavos(p, "totalCentavos", "total_centavos", "total");
 
-    // aceita os 3 nomes possíveis
-    const trocoParaRaw =
-      p.troco_para_centavos ?? p.trocoparacentavos ?? p.trocoParaCentavos;
+  // ✅ troco pra: seu banco usa troco_para_centavos
+  const trocoPara = getCentavos(
+    p,
+    "troco_para_centavos",
+    "trocoParaCentavos",
+    "trocoparacentavos"
+  );
 
-    const trocoPara =
-      trocoParaRaw === null || trocoParaRaw === undefined
-        ? null
-        : Number(trocoParaRaw);
+  // ✅ troco (se você tiver esse campo no backend)
+  const troco = getCentavos(p, "trocoCentavos", "troco_centavos", "troco");
 
-    // se existir no seu backend, ótimo; se não, fica 0
-    const troco = Number(p.trocoCentavos || 0);
+  const isDinheiro =
+    String(p.formaPagamento || "").toUpperCase() === "DINHEIRO";
 
-    const isDinheiro =
-      String(p.formaPagamento || "").toUpperCase() === "DINHEIRO";
+  const temTrocoPara = isDinheiro && trocoPara > 0;
 
-    const temTrocoPara =
-      isDinheiro && trocoPara !== null && Number.isFinite(trocoPara) && trocoPara > 0;
+  // Se você quer mostrar sempre, remova esse if
+  if (!hasMoney(total) && !temTrocoPara) return null;
 
-    if (!hasMoney(total) && !temTrocoPara) return null;
+  const baseStyle = isEntregador ? {} : { opacity: 0.88, marginTop: 6 };
 
-    const baseStyle = isEntregador ? {} : { opacity: 0.88, marginTop: 6 };
+  return (
+    <div style={baseStyle} className={isEntregador ? "ent-mini" : undefined}>
+      <b>Total:</b> {centavosToBRL(total)}
+      {temTrocoPara ? (
+        <>
+          {" "}
+          • <b>Troco pra:</b> {centavosToBRL(trocoPara)}
+          {" "}
+          • <b>Troco:</b>{" "}
+          <span style={isEntregador ? { fontWeight: 900 } : { fontWeight: 800 }}>
+            {centavosToBRL(troco)}
+          </span>
+        </>
+      ) : null}
+    </div>
+  );
+}
 
-    return (
-      <div style={baseStyle} className={isEntregador ? "ent-mini" : undefined}>
-        <b>Total:</b> {centavosToBRL(total)}
-        {temTrocoPara ? (
-          <>
-            {" "}
-            • <b>Troco pra:</b> {centavosToBRL(trocoPara)}
-            {" "}
-            • <b>Troco:</b>{" "}
-            <span style={isEntregador ? { fontWeight: 900 } : { fontWeight: 800 }}>
-              {centavosToBRL(troco)}
-            </span>
-          </>
-        ) : null}
-      </div>
-    );
-  }
 
   function renderItens(p, isEntregador = false) {
     const itens = Array.isArray(p.itens) ? p.itens : [];
