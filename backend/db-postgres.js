@@ -26,7 +26,11 @@ await client.query(`
     cpf TEXT,
     ativo BOOLEAN DEFAULT true,
     createdAt TIMESTAMP DEFAULT NOW()
-  )
+    
+    ALTER TABLE pedidos
+    ADD COLUMN IF NOT EXISTS troco_para_centavos INTEGER
+
+
 `);
 console.log('✅ Tabela clientes criada');
 
