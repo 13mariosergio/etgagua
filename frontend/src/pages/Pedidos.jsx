@@ -102,7 +102,7 @@ export default function Pedidos({ modo = "GERAL" }) {
 
   function renderResumoFinanceiro(p, isEntregador = false) {
     const total = Number(p.totalCentavos || 0);
-    const trocoPara = p.trocoParaCentavos === null || p.trocoParaCentavos === undefined ? null : Number(p.trocoParaCentavos);
+    const trocoPara = p.troco_para_centavos === null || p.troco_para_centavos === undefined ? null : Number(p.troco_para_centavos);
     const troco = Number(p.trocoCentavos || 0);
 
     const temTrocoPara = trocoPara !== null && Number.isFinite(trocoPara) && trocoPara > 0;

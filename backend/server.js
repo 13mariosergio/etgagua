@@ -255,7 +255,7 @@ app.get("/pedidos", requireAuth, async (req, res) => {
       observacao: p.observacao,
       status: p.status,
       formaPagamento: p.formapagamento,
-      trocoParaCentavos: p.trocoparacentavos,
+      troco_para_centavos: p.troco_para_centavos,
       createdAt: p.createdat,
       entregadorId: p.entregadorid,
       itens: map.get(p.id) || [],
@@ -271,7 +271,7 @@ app.get("/pedidos", requireAuth, async (req, res) => {
 // CRIAR PEDIDO (só produtos ativos)
 // =========================
 app.post("/pedidos", requireAuth, async (req, res) => {
-  const { clienteNome, telefone, endereco, observacao, itens, trocoParaCentavos, formaPagamento } = req.body || {};
+  const { clienteNome, telefone, endereco, observacao, itens, troco_para_centavos, formaPagamento } = req.body || {};
 
   if (!clienteNome || !endereco) {
     return res.status(400).json({ error: "clienteNome e endereco são obrigatórios" });
@@ -310,7 +310,7 @@ app.post("/pedidos", requireAuth, async (req, res) => {
 
     const mapProd = new Map(produtos.rows.map((p) => [p.id, p]));
 
-    let trocoPara = trocoParaCentavos === null || trocoParaCentavos === undefined ? null : Number(trocoParaCentavos);
+    let trocoPara = troco_para_centavos === null || troco_para_centavos === undefined ? null : Number(troco_para_centavos);
     if (forma !== "DINHEIRO") trocoPara = null;
 
     const client = await db.connect();
@@ -318,7 +318,7 @@ app.post("/pedidos", requireAuth, async (req, res) => {
       await client.query("BEGIN");
 
       const pedidoResult = await client.query(
-        `INSERT INTO pedidos (clientenome, telefone, endereco, observacao, status, formapagamento, trocoparacentavos)
+        `INSERT INTO pedidos (clientenome, telefone, endereco, observacao, status, formapagamento, troco_para_centavos)
          VALUES ($1, $2, $3, $4, 'ABERTO', $5, $6)
          RETURNING *`,
         [clienteNome, telefone || "", endereco, observacao || "", forma, trocoPara]
@@ -359,7 +359,7 @@ app.post("/pedidos", requireAuth, async (req, res) => {
         observacao: outPedido.observacao,
         status: outPedido.status,
         formaPagamento: outPedido.formapagamento,
-        trocoParaCentavos: outPedido.trocoparacentavos,
+        troco_para_centavos: outPedido.troco_para_centavos,
         createdAt: outPedido.createdat,
         entregadorId: outPedido.entregadorid,
         itens: outItens,
@@ -403,7 +403,7 @@ app.patch("/pedidos/:id/status", requireAuth, async (req, res) => {
       observacao: p.observacao,
       status: p.status,
       formaPagamento: p.formapagamento,
-      trocoParaCentavos: p.trocoparacentavos,
+      troco_para_centavos: p.troco_para_centavos,
       createdAt: p.createdat,
       entregadorId: p.entregadorid,
     });

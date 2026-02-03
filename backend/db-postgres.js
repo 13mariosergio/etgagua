@@ -77,7 +77,7 @@ try {
         observacao TEXT,
         status TEXT NOT NULL DEFAULT 'ABERTO' CHECK (status IN ('ABERTO', 'EM_ROTA', 'ENTREGUE', 'CANCELADO')),
         formaPagamento TEXT NOT NULL CHECK (formaPagamento IN ('DINHEIRO', 'PIX', 'CARTAO')),
-        trocoParaCentavos INTEGER,
+        troco_para_centavos INTEGER,
         createdAt TIMESTAMP DEFAULT NOW(),
         entregadorId INTEGER REFERENCES users(id)
       )

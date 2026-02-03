@@ -101,8 +101,8 @@ router.get("/resumo", requireAdmin, async (req, res) => {
           WHERE pi.pedidoid = p.id
         )), 0) as "totalCentavos",
         COALESCE(SUM(
-          CASE WHEN p.trocoparacentavos IS NOT NULL 
-          THEN p.trocoparacentavos - (
+          CASE WHEN p.troco_para_centavos IS NOT NULL 
+          THEN p.troco_para_centavos - (
             SELECT COALESCE(SUM(pi.precocentavos * pi.qtd), 0)
             FROM pedido_itens pi
             WHERE pi.pedidoid = p.id
@@ -234,9 +234,9 @@ router.get("/pedidos", requireAdmin, async (req, res) => {
         FROM pedido_itens pi
         WHERE pi.pedidoid = p.id
       ) as "totalCentavos",
-      p.trocoparacentavos AS "trocoParaCentavos",
-      CASE WHEN p.trocoparacentavos IS NOT NULL 
-      THEN p.trocoparacentavos - (
+      p.troco_para_centavos AS "troco_para_centavos",
+      CASE WHEN p.troco_para_centavos IS NOT NULL 
+      THEN p.troco_para_centavos - (
         SELECT COALESCE(SUM(pi.precocentavos * pi.qtd), 0)
         FROM pedido_itens pi
         WHERE pi.pedidoid = p.id

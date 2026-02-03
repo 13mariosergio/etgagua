@@ -103,7 +103,7 @@ export default function Atendente() {
     return total;
   }, [itens, produtos]);
 
-  const trocoParaCentavos = useMemo(() => {
+  const troco_para_centavos = useMemo(() => {
     if (formaPagamento !== "DINHEIRO") return null;
     if (!trocoPara) return null;
     return reaisToCentavos(trocoPara);
@@ -111,9 +111,9 @@ export default function Atendente() {
 
   const trocoPreviewCentavos = useMemo(() => {
     if (formaPagamento !== "DINHEIRO") return 0;
-    if (trocoParaCentavos === null) return 0;
-    return Math.max(0, trocoParaCentavos - totalPreviewCentavos);
-  }, [trocoParaCentavos, totalPreviewCentavos, formaPagamento]);
+    if (troco_para_centavos === null) return 0;
+    return Math.max(0, troco_para_centavos - totalPreviewCentavos);
+  }, [troco_para_centavos, totalPreviewCentavos, formaPagamento]);
 
   useEffect(() => {
     if (formaPagamento !== "DINHEIRO") setTrocoPara("");
@@ -145,7 +145,7 @@ export default function Atendente() {
     if (!clienteNome || !endereco) return alert("Nome e endereço são obrigatórios.");
     if (!itens.length) return alert("Adicione pelo menos 1 item.");
 
-    const tpc = trocoParaCentavos;
+    const tpc = troco_para_centavos;
     if (formaPagamento === "DINHEIRO" && tpc !== null && tpc < totalPreviewCentavos) {
       return alert("Troco pra quanto deve ser maior ou igual ao total.");
     }
@@ -180,7 +180,7 @@ export default function Atendente() {
         observacao: ponto_referencia ? `${ponto_referencia}${observacao ? ' | ' + observacao : ''}` : observacao, // 🆕 COMBINA PONTO REF + OBS
         itens,
         formaPagamento,
-        trocoParaCentavos: tpc,
+        troco_para_centavos: tpc,
       });
 
       alert(`✅ PEDIDO CRIADO!\n\nTotal: R$ ${totalReais}${formaPagamento === "DINHEIRO" && tpc ? `\nTroco: R$ ${trocoReais}` : ''}`);
@@ -352,10 +352,10 @@ export default function Atendente() {
               <div style={{ fontSize: 20, fontWeight: 'bold', marginBottom: 8 }}>
                 Total: <span style={{ color: '#10b981' }}>R$ {(totalPreviewCentavos / 100).toFixed(2)}</span>
               </div>
-              {formaPagamento === "DINHEIRO" && trocoParaCentavos > 0 && (
+              {formaPagamento === "DINHEIRO" && troco_para_centavos > 0 && (
                 <>
                   <div style={{ fontSize: 16, marginTop: 6 }}>
-                    Troco para: <span style={{ color: '#3b82f6', fontWeight: 600 }}>R$ {(trocoParaCentavos / 100).toFixed(2)}</span>
+                    Troco para: <span style={{ color: '#3b82f6', fontWeight: 600 }}>R$ {(troco_para_centavos / 100).toFixed(2)}</span>
                   </div>
                   <div style={{ fontSize: 18, fontWeight: 'bold', marginTop: 4 }}>
                     Troco: <span style={{ color: '#f59e0b' }}>R$ {(trocoPreviewCentavos / 100).toFixed(2)}</span>
