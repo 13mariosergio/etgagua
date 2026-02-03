@@ -55,6 +55,8 @@ try {
         precoCentavos INTEGER NOT NULL,
         ativo BOOLEAN DEFAULT true
       )
+        
+
     `);
     console.log('✅ Tabela produtos criada/verificada');
 
