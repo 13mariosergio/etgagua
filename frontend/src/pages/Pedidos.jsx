@@ -118,28 +118,26 @@ export default function Pedidos({ modo = "GERAL" }) {
     }
   }
 
-  function renderResumoFinanceiro(p, isEntregador = false) {
-  // ✅ aceita total em camelCase ou snake_case
-  const total = getCentavos(p, "totalCentavos", "total_centavos", "total");
+function renderResumoFinanceiro(p, isEntregador = false) {
+  const total = Number(p.totalCentavos ?? p.total_centavos ?? 0);
 
-  // ✅ troco pra: seu banco usa troco_para_centavos
-  const trocoPara = getCentavos(
-    p,
-    "troco_para_centavos",
-    "trocoParaCentavos",
-    "trocoparacentavos"
-  );
+  const trocoParaRaw =
+    p.troco_para_centavos ?? p.trocoparacentavos ?? p.trocoParaCentavos;
 
-  // ✅ troco (se você tiver esse campo no backend)
-  const troco = getCentavos(p, "trocoCentavos", "troco_centavos", "troco");
+  const trocoPara =
+    trocoParaRaw === null || trocoParaRaw === undefined
+      ? 0
+      : Number(trocoParaRaw);
 
   const isDinheiro =
     String(p.formaPagamento || "").toUpperCase() === "DINHEIRO";
 
   const temTrocoPara = isDinheiro && trocoPara > 0;
 
-  // Se você quer mostrar sempre, remova esse if
-  if (!hasMoney(total) && !temTrocoPara) return null;
+  // ✅ TROCO CALCULADO AQUI
+  const troco = temTrocoPara ? Math.max(0, trocoPara - total) : 0;
+
+  if (total === 0 && !temTrocoPara) return null;
 
   const baseStyle = isEntregador ? {} : { opacity: 0.88, marginTop: 6 };
 
@@ -160,6 +158,7 @@ export default function Pedidos({ modo = "GERAL" }) {
     </div>
   );
 }
+
 
 
   function renderItens(p, isEntregador = false) {
