@@ -17,7 +17,7 @@ export default function Atendente() {
   const [clienteNome, setClienteNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [endereco, setEndereco] = useState("");
-  const [pontoReferencia, setPontoReferencia] = useState(""); // 🆕 NOVO CAMPO
+  const [ponto_referencia, setponto_referencia] = useState(""); // 🆕 NOVO CAMPO
   const [observacao, setObservacao] = useState("");
   const [formaPagamento, setFormaPagamento] = useState("DINHEIRO");
   const [produtos, setProdutos] = useState([]);
@@ -76,7 +76,7 @@ export default function Atendente() {
     setClienteNome(cliente.nome);
     setEndereco(cliente.endereco);
     setTelefone(cliente.telefone || "");
-    setPontoReferencia(cliente.pontoreferencia || ""); // 🆕 PREENCHE PONTO DE REFERÊNCIA
+    setponto_referencia(cliente.ponto_referencia || ""); // 🆕 PREENCHE PONTO DE REFERÊNCIA
     setMostrarSugestoes(false);
   }
 
@@ -157,7 +157,7 @@ export default function Atendente() {
     let mensagem = `📋 RESUMO DO PEDIDO\n\n`;
     mensagem += `Cliente: ${clienteNome}\n`;
     mensagem += `Endereço: ${endereco}\n`;
-    if (pontoReferencia) mensagem += `Ponto de referência: ${pontoReferencia}\n`; // 🆕
+    if (ponto_referencia) mensagem += `Ponto de referência: ${ponto_referencia}\n`; // 🆕
     mensagem += `\n💰 VALORES:\n`;
     mensagem += `Total: R$ ${totalReais}\n`;
 
@@ -177,7 +177,7 @@ export default function Atendente() {
         clienteNome,
         telefone,
         endereco,
-        observacao: pontoReferencia ? `${pontoReferencia}${observacao ? ' | ' + observacao : ''}` : observacao, // 🆕 COMBINA PONTO REF + OBS
+        observacao: ponto_referencia ? `${ponto_referencia}${observacao ? ' | ' + observacao : ''}` : observacao, // 🆕 COMBINA PONTO REF + OBS
         itens,
         formaPagamento,
         trocoParaCentavos: tpc,
@@ -188,7 +188,7 @@ export default function Atendente() {
       setClienteNome("");
       setTelefone("");
       setEndereco("");
-      setPontoReferencia(""); // 🆕
+      setponto_referencia(""); // 🆕
       setObservacao("");
       setItens([]);
       setQtd(1);
@@ -259,9 +259,9 @@ export default function Atendente() {
                     <div style={{ fontSize: 12, opacity: 0.7, marginTop: 2 }}>
                       📍 {cliente.endereco}
                     </div>
-                    {cliente.pontoreferencia && (
+                    {cliente.ponto_referencia && (
                       <div style={{ fontSize: 12, opacity: 0.7 }}>
-                        🗺️ {cliente.pontoreferencia}
+                        🗺️ {cliente.ponto_referencia}
                       </div>
                     )}
                     {cliente.telefone && (
@@ -281,8 +281,8 @@ export default function Atendente() {
           {/* 🆕 CAMPO PONTO DE REFERÊNCIA */}
           <input 
             placeholder="Ponto de referência (ex: Próximo ao mercado)" 
-            value={pontoReferencia} 
-            onChange={(e) => setPontoReferencia(e.target.value)} 
+            value={ponto_referencia} 
+            onChange={(e) => setponto_referencia(e.target.value)} 
           />
           
           <input placeholder="Observação adicional" value={observacao} onChange={(e) => setObservacao(e.target.value)} />

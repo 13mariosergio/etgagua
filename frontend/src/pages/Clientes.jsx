@@ -6,7 +6,7 @@ export default function Clientes() {
   const [loading, setLoading] = useState(false);
   const [nome, setNome] = useState("");
   const [endereco, setEndereco] = useState("");
-  const [pontoReferencia, setPontoReferencia] = useState("");
+  const [ponto_referencia, setponto_referencia] = useState("");
   const [telefone, setTelefone] = useState("");
   const [cpf, setCpf] = useState("");
   const [editando, setEditando] = useState(null);
@@ -34,10 +34,10 @@ export default function Clientes() {
 
     try {
       if (editando) {
-        await api.patch(`/clientes/${editando.id}`, { nome, endereco, pontoReferencia, telefone, cpf });
+        await api.patch(`/clientes/${editando.id}`, { nome, endereco, ponto_referencia, telefone, cpf });
         alert("✅ Cliente atualizado!");
       } else {
-        await api.post("/clientes", { nome, endereco, pontoReferencia, telefone, cpf });
+        await api.post("/clientes", { nome, endereco, ponto_referencia, telefone, cpf });
         alert("✅ Cliente cadastrado!");
       }
       limparForm();
@@ -51,7 +51,7 @@ export default function Clientes() {
   function limparForm() {
     setNome("");
     setEndereco("");
-    setPontoReferencia("");
+    setponto_referencia("");
     setTelefone("");
     setCpf("");
     setEditando(null);
@@ -61,7 +61,7 @@ export default function Clientes() {
     setEditando(c);
     setNome(c.nome);
     setEndereco(c.endereco);
-    setPontoReferencia(c.pontoreferencia || "");
+    setponto_referencia(c.ponto_referencia || "");
     setTelefone(c.telefone || "");
     setCpf(c.cpf || "");
   }
@@ -86,7 +86,7 @@ export default function Clientes() {
         <form onSubmit={salvar} style={{ display: "grid", gap: 10, maxWidth: 600 }}>
           <input placeholder="Nome *" value={nome} onChange={(e) => setNome(e.target.value)} required />
           <input placeholder="Endereço *" value={endereco} onChange={(e) => setEndereco(e.target.value)} required />
-          <input placeholder="Ponto de referência" value={pontoReferencia} onChange={(e) => setPontoReferencia(e.target.value)} />
+          <input placeholder="Ponto de referência" value={ponto_referencia} onChange={(e) => setponto_referencia(e.target.value)} />
           <input placeholder="Telefone" value={telefone} onChange={(e) => setTelefone(e.target.value)} />
           <input placeholder="CPF" value={cpf} onChange={(e) => setCpf(e.target.value)} />
           <div style={{ display: "flex", gap: 10 }}>
@@ -119,7 +119,7 @@ export default function Clientes() {
                   </div>
                 </div>
                 <div>📍 {c.endereco}</div>
-                {c.pontoreferencia && <div>🗺️ {c.pontoreferencia}</div>}
+                {c.ponto_referencia && <div>🗺️ {c.ponto_referencia}</div>}
                 {c.telefone && <div>📞 {c.telefone}</div>}
                 {c.cpf && <div>🆔 {c.cpf}</div>}
               </div>
