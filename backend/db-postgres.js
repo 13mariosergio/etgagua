@@ -143,6 +143,18 @@ try {
   }
 }
 
+await client.query(`
+  ALTER TABLE pedidos
+  ADD COLUMN IF NOT EXISTS troco_para_centavos INTEGER DEFAULT 0
+`);
+
+await client.query(`
+  UPDATE pedidos
+  SET troco_para_centavos = 0
+  WHERE troco_para_centavos IS NULL
+`);
+
+
 function getDB() {
   return pool;
 }
