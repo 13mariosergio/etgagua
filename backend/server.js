@@ -525,6 +525,29 @@ app.delete("/clientes/:id", requireAuth, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+  
+// ROTA DE MIGRAÇÃO - ADICIONAR COLUNA PONTOREFERENCIA
+app.get("/migrate/add-pontoreferencia", requireAuth, requireRole("ADMIN"), async (req, res) => {
+  try {
+    const db = getDB();
+    
+    // Tentar adicionar a coluna
+    await db.query(`
+      ALTER TABLE clientes 
+      ADD COLUMN IF NOT EXISTS "pontoReferencia" TEXT
+    `);
+    
+    res.json({ 
+      success: true, 
+      message: "Coluna pontoReferencia adicionada com sucesso!" 
+    });
+  } catch (err) {
+    console.error("Erro na migração:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 app.listen(PORT, HOST, () => {
   console.log(`🚀 ETGÁGUA Backend rodando em http://${HOST}:${PORT}`);
