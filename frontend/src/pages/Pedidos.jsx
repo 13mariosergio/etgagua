@@ -45,6 +45,8 @@ export default function Pedidos({ modo = "GERAL" }) {
     try {
       const url = f && f !== "TODOS" ? `/pedidos?status=${encodeURIComponent(f)}` : "/pedidos";
       const { data } = await api.get(url);
+      console.log("DEBUG PEDIDOS[0]:", Array.isArray(data) ? data[0] : data);
+
       if (!mountedRef.current) return;
       setPedidos(Array.isArray(data) ? data : []);
     } catch (e) {
@@ -100,9 +102,58 @@ export default function Pedidos({ modo = "GERAL" }) {
   }
 }
 
-  function renderResumoFinanceiro(p, isEntregador = false) {
+ function renderResumoFinanceiro(p, isEntregador = false) {
+  const totalRaw =
+    p.totalCentavos ?? p.total_centavos ?? p.totalCentavo ?? p.total_centavo;
+
+  const trocoParaRaw =
+    p.troco_para_centavos ??
+    p.trocoparacentavos ??
+    p.trocoParaCentavos;
+
+  const trocoRaw =
+    p.trocoCentavos ?? p.troco_centavos ?? p.troco;
+
+  const total = Number(totalRaw || 0);
+  const trocoPara =
+    trocoParaRaw === null || trocoParaRaw === undefined ? null : Number(trocoParaRaw);
+  const troco = Number(trocoRaw || 0);
+
+  const isDinheiro = String(p.formaPagamento || p.formapagamento || "")
+    .toUpperCase() === "DINHEIRO";
+
+  const temTrocoPara = isDinheiro && trocoPara !== null && Number.isFinite(trocoPara) && trocoPara > 0;
+
+  // ✅ se quiser mostrar Total sempre, remova essa linha.
+  if (!hasMoney(total) && !temTrocoPara) return null;
+
+  const baseStyle = isEntregador ? {} : { opacity: 0.88, marginTop: 6 };
+
+  return (
+    <div style={baseStyle} className={isEntregador ? "ent-mini" : undefined}>
+      <b>Total:</b> {centavosToBRL(total)}
+      {temTrocoPara ? (
+        <>
+          {" "}• <b>Troco pra:</b> {centavosToBRL(trocoPara)} • <b>Troco:</b>{" "}
+          <span style={isEntregador ? { fontWeight: 900 } : { fontWeight: 800 }}>
+            {centavosToBRL(troco)}
+          </span>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
     const total = Number(p.totalCentavos || 0);
-    const trocoPara = p.troco_para_centavos === null || p.troco_para_centavos === undefined ? null : Number(p.troco_para_centavos);
+    const trocoParaRaw =
+        p.troco_para_centavos ??
+        p.trocoparacentavos ??
+        p.trocoParaCentavos;
+
+const trocoPara =
+  trocoParaRaw === null || trocoParaRaw === undefined ? null : Number(trocoParaRaw);
+
+
     const troco = Number(p.trocoCentavos || 0);
 
     const temTrocoPara = trocoPara !== null && Number.isFinite(trocoPara) && trocoPara > 0;
@@ -126,7 +177,7 @@ export default function Pedidos({ modo = "GERAL" }) {
         ) : null}
       </div>
     );
-  }
+  
 
   function renderItens(p, isEntregador = false) {
     const itens = Array.isArray(p.itens) ? p.itens : [];
@@ -220,7 +271,7 @@ export default function Pedidos({ modo = "GERAL" }) {
                       </span>{" "}
                       — <b>{p.clienteNome}</b>
                     </div>
-
+                        
                     <div className="ent-muted">{p.endereco}</div>
                     {p.telefone ? <div className="ent-muted">📞 {p.telefone}</div> : null}
                     {p.observacao ? <div className="ent-muted">📝 {p.observacao}</div> : null}
@@ -230,7 +281,7 @@ export default function Pedidos({ modo = "GERAL" }) {
                     {renderResumoFinanceiro(p, true)}
                     {renderItens(p, true)}
                   </div>
-
+                  
                   <div className="ent-right">
                     <div className="ent-label">Status</div>
                     <select
