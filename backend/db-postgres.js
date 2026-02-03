@@ -21,7 +21,7 @@ await client.query(`
     codigo TEXT UNIQUE NOT NULL,
     nome TEXT NOT NULL,
     endereco TEXT NOT NULL,
-    pontoReferencia TEXT,
+    ponto_referencia TEXT,
     telefone TEXT,
     cpf TEXT,
     ativo BOOLEAN DEFAULT true,
@@ -29,6 +29,17 @@ await client.query(`
   )
 `);
 console.log('✅ Tabela clientes criada');
+
+    // 🆕 MIGRAÇÃO: Adicionar coluna ponto_referencia se não existir
+try {
+  await client.query(`
+    ALTER TABLE clientes 
+    ADD COLUMN IF NOT EXISTS "ponto_referencia" TEXT
+  `);
+  console.log('✅ Coluna ponto_referencia verificada/adicionada');
+} catch (err) {
+  console.log('ℹ️ Coluna ponto_referencia:', err.message);
+}
 
     // =========================
     // Tabela de produtos COM COLUNA ATIVO
