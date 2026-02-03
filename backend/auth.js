@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const { getDB } = require("./db-postgres");
+const { getDB } = require("./db-postgres.js");
 
 const JWT_SECRET = process.env.JWT_SECRET || "ETGAGUA_DEV_SECRET_CHANGE_ME";
 

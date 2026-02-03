@@ -5,7 +5,7 @@ const cors = require("cors");
 const bcrypt = require("bcrypt");
 
 const { signToken, requireAuth, requireRole } = require("./auth");
-const { initDB, getDB } = require("./db-postgres");
+const { initDB, getDB } = require("./db-postgres.js");
 const relatoriosRoutes = require("./relatorios");
 
 const app = express();
