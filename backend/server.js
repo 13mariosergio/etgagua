@@ -230,42 +230,75 @@ app.get("/pedidos", requireAuth, async (req, res) => {
     if (pedidos.rows.length === 0) return res.json([]);
 
     const ids = pedidos.rows.map((p) => p.id);
+
+    // ✅ traz itens + nome do produto
     const itens = await db.query(
-      "SELECT * FROM pedido_itens WHERE pedidoid = ANY($1) ORDER BY id ASC",
+      `
+      SELECT
+        pi.*,
+        pr.nome AS produtonome
+      FROM pedido_itens pi
+      LEFT JOIN produtos pr ON pr.id = pi.produtoid
+      WHERE pi.pedidoid = ANY($1)
+      ORDER BY pi.id ASC
+      `,
       [ids]
     );
 
-    const map = new Map();
+    // Agrupar itens por pedido + calcular subtotal
+    const mapItens = new Map();
     for (const it of itens.rows) {
-      if (!map.has(it.pedidoid)) map.set(it.pedidoid, []);
-      map.get(it.pedidoid).push({
+      const pedidoId = it.pedidoid;
+
+      const subtotalCentavos = Number(it.qtd || 0) * Number(it.precocentavos || 0);
+
+      if (!mapItens.has(pedidoId)) mapItens.set(pedidoId, []);
+      mapItens.get(pedidoId).push({
         id: it.id,
         pedidoId: it.pedidoid,
         produtoId: it.produtoid,
+        produtoNome: it.produtonome || null,
         qtd: it.qtd,
         precoCentavos: it.precocentavos,
+        subtotalCentavos, // ✅ agora o front consegue mostrar o valor
       });
     }
 
-    const out = pedidos.rows.map((p) => ({
-      id: p.id,
-      clienteNome: p.clientenome,
-      telefone: p.telefone,
-      endereco: p.endereco,
-      observacao: p.observacao,
-      status: p.status,
-      formaPagamento: p.formapagamento,
-      troco_para_centavos: p.troco_para_centavos,
-      createdAt: p.createdat,
-      entregadorId: p.entregadorid,
-      itens: map.get(p.id) || [],
-    }));
+    // Montar pedidos + calcular total
+    const out = pedidos.rows.map((p) => {
+      const itensDoPedido = mapItens.get(p.id) || [];
+      const totalCentavos = itensDoPedido.reduce(
+        (acc, it) => acc + Number(it.subtotalCentavos || 0),
+        0
+      );
+
+      return {
+        id: p.id,
+        clienteNome: p.clientenome,
+        telefone: p.telefone,
+        endereco: p.endereco,
+        observacao: p.observacao,
+        status: p.status,
+        formaPagamento: p.formapagamento,
+        troco_para_centavos: p.troco_para_centavos,
+        createdAt: p.createdat,
+        criadoEm: p.createdat
+          ? new Date(p.createdat).toLocaleString("pt-BR")
+          : null,
+
+        entregadorId: p.entregadorid,
+
+        totalCentavos, // ✅ agora aparece Total no entregador/atendente
+        itens: itensDoPedido,
+      };
+    });
 
     res.json(out);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 // =========================
 // CRIAR PEDIDO (só produtos ativos)
