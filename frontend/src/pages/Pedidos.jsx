@@ -34,7 +34,7 @@ export default function Pedidos({ modo = "GERAL" }) {
   const statusPermitidosNoSelect = useMemo(() => {
     if (modo === "ENTREGADOR")
       return ["ABERTO", "EM_ROTA", "ENTREGUE", "CANCELADO"];
-    if (modo === "ATENDENTE") return ["ABERTO", "EM_ROTA"]; // atendente só abre e repassa
+    if (modo === "ATENDENTE") return ["ABERTO", "EM_ROTA"];
     return ALL_STATUS;
   }, [modo]);
 
@@ -42,11 +42,69 @@ export default function Pedidos({ modo = "GERAL" }) {
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState("");
   const [filtro, setFiltro] = useState(filtroInicial);
+  
+  // 🔊 NOVO: Estado para notificações
+  const [newOrdersCount, setNewOrdersCount] = useState(0);
 
   const mountedRef = useRef(true);
   const loadingRef = useRef(false);
+  
+  // 🔊 NOVO: Refs para tracking de pedidos e áudio
+  const previousPedidosRef = useRef([]);
+  const audioRef = useRef(null);
+  const isFirstLoadRef = useRef(true);
 
-  async function carregarPedidos(f = filtro) {
+  // 🔊 NOVO: Solicitar permissão de notificação
+  useEffect(() => {
+    if (modo === "ENTREGADOR" && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, [modo]);
+
+  // 🔊 NOVO: Função para tocar som
+ const playSound = () => {
+  try {
+    // Criar beep com Web Audio API
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.value = 400; // Frequência do beep
+    oscillator.type = 'sine';
+    
+    gainNode.gain.setValueAtTime(0.9, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.05, audioContext.currentTime + 0.9);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.9);
+  } catch (error) {
+    console.log('Erro ao tocar som:', error);
+  }
+};
+
+  // 🔊 NOVO: Função para vibrar
+  const vibrate = () => {
+    if ('vibrate' in navigator) {
+      navigator.vibrate([200, 100, 200]);
+    }
+  };
+
+  // 🔊 NOVO: Função para mostrar notificação do navegador
+  const showBrowserNotification = (pedido) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('🚚 Novo Pedido!', {
+        body: `Cliente: ${pedido.clienteNome}\nEndereço: ${pedido.endereco}`,
+        icon: '/logo.png',
+        tag: `pedido-${pedido.id}`,
+        requireInteraction: false
+      });
+    }
+  };
+
+  async function carregarPedidos(f = filtro, silent = false) {
     if (loadingRef.current) return;
 
     loadingRef.current = true;
@@ -62,7 +120,44 @@ export default function Pedidos({ modo = "GERAL" }) {
       const { data } = await api.get(url);
 
       if (!mountedRef.current) return;
-      setPedidos(Array.isArray(data) ? data : []);
+      
+      const novosPedidos = Array.isArray(data) ? data : [];
+      
+      // 🔊 NOVO: Detectar pedidos novos (apenas para ENTREGADOR e após primeira carga)
+      if (modo === "ENTREGADOR" && !isFirstLoadRef.current && !silent) {
+        const pedidosAntigos = previousPedidosRef.current;
+        
+        if (pedidosAntigos.length > 0) {
+          const idsAntigos = new Set(pedidosAntigos.map(p => p.id));
+          const pedidosRealmenteNovos = novosPedidos.filter(p => !idsAntigos.has(p.id));
+
+          if (pedidosRealmenteNovos.length > 0) {
+            console.log('🔔 Novos pedidos detectados:', pedidosRealmenteNovos.length);
+            
+            // Tocar som
+            playSound();
+            
+            // Vibrar
+            vibrate();
+            
+            // Incrementar contador
+            setNewOrdersCount(prev => prev + pedidosRealmenteNovos.length);
+            
+            // Mostrar notificação do navegador
+            pedidosRealmenteNovos.forEach(pedido => {
+              showBrowserNotification(pedido);
+            });
+          }
+        }
+      }
+      
+      // Atualizar refs
+      previousPedidosRef.current = novosPedidos;
+      if (isFirstLoadRef.current) {
+        isFirstLoadRef.current = false;
+      }
+      
+      setPedidos(novosPedidos);
     } catch (e) {
       console.error(e);
       if (!mountedRef.current) return;
@@ -73,9 +168,21 @@ export default function Pedidos({ modo = "GERAL" }) {
     }
   }
 
+  // 🔊 NOVO: Polling automático para ENTREGADOR
+  useEffect(() => {
+    if (modo !== "ENTREGADOR") return;
+
+    const interval = setInterval(() => {
+      carregarPedidos(filtro, false);
+    }, 10000); // 10 segundos
+
+    return () => clearInterval(interval);
+  }, [modo, filtro]);
+
   useEffect(() => {
     mountedRef.current = true;
-    carregarPedidos(filtroInicial);
+    isFirstLoadRef.current = true;
+    carregarPedidos(filtroInicial, true); // Primeira carga silenciosa
     setFiltro(filtroInicial);
 
     return () => {
@@ -91,7 +198,6 @@ export default function Pedidos({ modo = "GERAL" }) {
     }
 
     try {
-      // Atualização otimista
       setPedidos((prev) =>
         prev.map((p) => (p.id === id ? { ...p, status: novoStatus } : p))
       );
@@ -102,21 +208,24 @@ export default function Pedidos({ modo = "GERAL" }) {
 
       if (!mountedRef.current) return;
 
-      // Atualiza com dados do servidor
       setPedidos((prev) => prev.map((p) => (p.id === id ? data : p)));
 
-      // Recarrega a lista se mudou pra fora do filtro atual
       if (filtro !== "TODOS" && novoStatus !== filtro) {
-        setTimeout(() => carregarPedidos(filtro), 500);
+        setTimeout(() => carregarPedidos(filtro, true), 500);
       }
 
       alert(`✅ Status alterado para ${novoStatus}`);
     } catch (e) {
       console.error(e);
       alert("❌ Erro ao atualizar status");
-      carregarPedidos(filtro);
+      carregarPedidos(filtro, true);
     }
   }
+
+  // 🔊 NOVO: Limpar contador
+  const clearNewOrders = () => {
+    setNewOrdersCount(0);
+  };
 
 function renderResumoFinanceiro(p, isEntregador = false) {
   const total = Number(p.totalCentavos ?? p.total_centavos ?? 0);
@@ -134,7 +243,6 @@ function renderResumoFinanceiro(p, isEntregador = false) {
 
   const temTrocoPara = isDinheiro && trocoPara > 0;
 
-  // ✅ TROCO CALCULADO AQUI
   const troco = temTrocoPara ? Math.max(0, trocoPara - total) : 0;
 
   if (total === 0 && !temTrocoPara) return null;
@@ -158,8 +266,6 @@ function renderResumoFinanceiro(p, isEntregador = false) {
     </div>
   );
 }
-
-
 
   function renderItens(p, isEntregador = false) {
     const itens = Array.isArray(p.itens) ? p.itens : [];
@@ -201,12 +307,37 @@ function renderResumoFinanceiro(p, isEntregador = false) {
     );
   }
 
-  // ======= RENDER: ENTREGADOR (com CSS) =======
+  // ======= RENDER: ENTREGADOR (com CSS + 🔊 BADGE) =======
   if (modo === "ENTREGADOR") {
     return (
       <div>
         <div className="ent-header">
           <h2 className="ent-h2">Pedidos</h2>
+
+          {/* 🔊 NOVO: Badge de pedidos novos */}
+          {newOrdersCount > 0 && (
+            <div 
+              style={{
+                position: 'absolute',
+                top: '-10px',
+                right: '20px',
+                background: '#f44336',
+                color: 'white',
+                padding: '8px 16px',
+                borderRadius: '20px',
+                fontWeight: 'bold',
+                fontSize: '14px',
+                cursor: 'pointer',
+                animation: 'pulse 2s infinite',
+                boxShadow: '0 2px 8px rgba(244, 67, 54, 0.4)',
+                transition: 'transform 0.2s',
+              }}
+              onClick={clearNewOrders}
+              title="Clique para limpar"
+            >
+              {newOrdersCount} novo{newOrdersCount > 1 ? 's' : ''}
+            </div>
+          )}
 
           <div className="ent-filters">
             {filtroBotoes.map((s) => (
@@ -215,7 +346,7 @@ function renderResumoFinanceiro(p, isEntregador = false) {
                 className={`ent-chip ${filtro === s ? "active" : ""}`}
                 onClick={() => {
                   setFiltro(s);
-                  carregarPedidos(s);
+                  carregarPedidos(s, true);
                 }}
                 disabled={loading}
                 type="button"
@@ -227,7 +358,7 @@ function renderResumoFinanceiro(p, isEntregador = false) {
 
           <button
             className="ent-btn"
-            onClick={() => carregarPedidos(filtro)}
+            onClick={() => carregarPedidos(filtro, true)}
             disabled={loading}
             type="button"
           >
@@ -314,6 +445,18 @@ function renderResumoFinanceiro(p, isEntregador = false) {
             ))}
           </div>
         )}
+
+        {/* 🔊 NOVO: CSS para animação do badge */}
+        <style>{`
+          @keyframes pulse {
+            0%, 100% {
+              transform: scale(1);
+            }
+            50% {
+              transform: scale(1.05);
+            }
+          }
+        `}</style>
       </div>
     );
   }

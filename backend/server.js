@@ -76,7 +76,7 @@ app.post("/auth/login", async (req, res) => {
   try {
     const db = getDB();
     const result = await db.query(
-      "SELECT id, username, passwordhash, role FROM users WHERE username = $1",
+        'SELECT id, username, "passwordHash" as passwordhash, role FROM public.users WHERE username = $1',
       [username]
     );
 
@@ -274,7 +274,7 @@ app.get("/pedidos", requireAuth, async (req, res) => {
 
       return {
         id: p.id,
-        clienteNome: p.clientenome,
+        clientenome: p.clientenome,
         telefone: p.telefone,
         endereco: p.endereco,
         observacao: p.observacao,
@@ -304,6 +304,7 @@ app.get("/pedidos", requireAuth, async (req, res) => {
 // CRIAR PEDIDO (só produtos ativos)
 // =========================
 app.post("/pedidos", requireAuth, async (req, res) => {
+  console.log('📦 POST /pedidos recebido:', req.body); 
   const { clienteNome, telefone, endereco, observacao, itens, troco_para_centavos, formaPagamento } = req.body || {};
 
   if (!clienteNome || !endereco) {
@@ -331,17 +332,19 @@ app.post("/pedidos", requireAuth, async (req, res) => {
     const ids = parsedItens.map((i) => i.produtoId);
 
     const produtos = await db.query(
-      `SELECT id, nome, precocentavos AS "precoCentavos"
-       FROM produtos
-       WHERE id = ANY($1) AND ativo = true`,
-      [ids]
-    );
+  `SELECT id, nome, precocentavos AS "precoCentavos"
+   FROM public.produtos
+   WHERE id = ANY($1) AND ativo = true`,
+  [ids]
+);
+console.log('🔍 Produtos encontrados:', produtos.rows); // ← ADICIONE ESTA LINHA
+console.log('🔍 IDs procurados:', ids); // ← E ESTA
 
     if (produtos.rows.length !== ids.length) {
       return res.status(400).json({ error: "Um ou mais produtos não existem ou estão inativos" });
     }
 
-    const mapProd = new Map(produtos.rows.map((p) => [p.id, p]));
+    const mapProd = new Map(produtos.rows.map((p) => [Number(p.id), p]));
 
     let trocoPara = troco_para_centavos === null || troco_para_centavos === undefined ? null : Number(troco_para_centavos);
     if (forma !== "DINHEIRO") trocoPara = null;
@@ -351,29 +354,29 @@ app.post("/pedidos", requireAuth, async (req, res) => {
       await client.query("BEGIN");
 
       const pedidoResult = await client.query(
-        `INSERT INTO pedidos (clientenome, telefone, endereco, observacao, status, formapagamento, troco_para_centavos)
-         VALUES ($1, $2, $3, $4, 'ABERTO', $5, $6)
-         RETURNING *`,
-        [clienteNome, telefone || "", endereco, observacao || "", forma, trocoPara]
-      );
-
+  `INSERT INTO public.pedidos ("clienteNome", telefone, endereco, observacao, status, "formaPagamento", troco_para_centavos)
+   VALUES ($1, $2, $3, $4, 'ABERTO', $5, $6)
+   RETURNING *`,
+  [clienteNome, telefone, endereco, observacao, forma, trocoPara]
+);
+      
       const pedidoId = pedidoResult.rows[0].id;
 
       for (const it of parsedItens) {
         const p = mapProd.get(it.produtoId);
         const precoUnit = Number(p.precoCentavos);
 
-        await client.query(
-          `INSERT INTO pedido_itens (pedidoid, produtoid, qtd, precocentavos)
-           VALUES ($1, $2, $3, $4)`,
-          [pedidoId, it.produtoId, it.qtd, precoUnit]
-        );
+       await client.query(
+        `INSERT INTO public.pedido_itens ("pedidoId", "produtoId", "produtoNome", qtd, "precoUnitCentavos", "subtotalCentavos", precocentavos)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [pedidoId, it.produtoId, p.nome, it.qtd, precoUnit, precoUnit * it.qtd, precoUnit]
+      );
       }
 
       await client.query("COMMIT");
 
-      const final = await db.query("SELECT * FROM pedidos WHERE id = $1", [pedidoId]);
-      const itensResult = await db.query("SELECT * FROM pedido_itens WHERE pedidoid = $1", [pedidoId]);
+      const final = await db.query("SELECT * FROM public.pedidos WHERE id = $1", [pedidoId]);
+      const itensResult = await db.query("SELECT * FROM public.pedido_itens WHERE pedidoId = $1", [pedidoId]);
 
       const outPedido = final.rows[0];
       const outItens = itensResult.rows.map((it) => ({
@@ -394,16 +397,17 @@ app.post("/pedidos", requireAuth, async (req, res) => {
         formaPagamento: outPedido.formapagamento,
         troco_para_centavos: outPedido.troco_para_centavos,
         createdAt: outPedido.createdat,
-        entregadorId: outPedido.entregadorid,
         itens: outItens,
       });
     } catch (err) {
+      console.error('❌ ERRO POST /pedidos:', err);
       await client.query("ROLLBACK");
       throw err;
     } finally {
       client.release();
     }
   } catch (err) {
+    console.error('❌ ERRO GERAL:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -430,7 +434,7 @@ app.patch("/pedidos/:id/status", requireAuth, async (req, res) => {
     const p = result.rows[0];
     res.json({
       id: p.id,
-      clienteNome: p.clientenome,
+      clientenome: p.clientenome,
       telefone: p.telefone,
       endereco: p.endereco,
       observacao: p.observacao,
@@ -458,18 +462,18 @@ app.get("/clientes", requireAuth, async (req, res) => {
         codigo,
         nome,
         endereco,
-        ponto_referencia AS "ponto_referencia",
+        ponto_referencia,
         telefone,
         cpf,
         ativo,
-        created_at AS "createdAt"
-      FROM clientes
+        createdat
+      FROM public.clientes
       WHERE ativo = true
       ORDER BY nome
     `);
     res.json(result.rows);
   } catch (err) {
-    console.error("GET /clientes error:", err); // 👈 importante no Render Logs
+    console.error("GET /clientes error:", err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -487,15 +491,9 @@ app.post("/clientes", requireAuth, async (req, res) => {
     const codigo = `CLI${Date.now()}`;
 
     const result = await db.query(
-      `
-      INSERT INTO clientes (codigo, nome, endereco, ponto_referencia, telefone, cpf, ativo)
-      VALUES ($1, $2, $3, $4, $5, $6, true)
-      RETURNING
-        id, codigo, nome, endereco,
-        ponto_referencia AS "ponto_referencia",
-        telefone, cpf, ativo,
-        created_at AS "createdAt"
-      `,
+      `INSERT INTO public.clientes (codigo, nome, endereco, ponto_referencia, telefone, cpf, ativo)
+       VALUES ($1, $2, $3, $4, $5, $6, true)
+       RETURNING id, codigo, nome, endereco, ponto_referencia, telefone, cpf, ativo, createdat`,
       [codigo, nome, endereco, ponto_referencia || null, telefone || null, cpf || null]
     );
 
