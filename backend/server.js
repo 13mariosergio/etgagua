@@ -125,7 +125,7 @@ app.post("/admin/users", requireAuth, requireRole("ADMIN"), async (req, res) => 
     const db = getDB();
 
     const result = await db.query(
-      "INSERT INTO users (username, passwordhash, role) VALUES ($1, $2, $3) RETURNING id, username, role",
+      'INSERT INTO public.users (username, "passwordHash", role) VALUES ($1, $2, $3) RETURNING id, username, role',
       [username, passwordHash, role]
     );
 
