@@ -80,20 +80,20 @@ export default function Pedidos({ modo = "GERAL" }) {
     
     oscillator.start(audioContext.currentTime);
     oscillator.stop(audioContext.currentTime + 0.9);
-  } catch (error) {
+   } catch (error) {
     console.log('Erro ao tocar som:', error);
-  }
-};
+   }
+   };
 
-  // 🔊 NOVO: Função para vibrar
-  const vibrate = () => {
+   // 🔊 NOVO: Função para vibrar
+   const vibrate = () => {
     if ('vibrate' in navigator) {
       navigator.vibrate([200, 100, 200]);
     }
-  };
+   };
 
-  // 🔊 NOVO: Função para mostrar notificação do navegador
-  const showBrowserNotification = (pedido) => {
+   // 🔊 NOVO: Função para mostrar notificação do navegador
+   const showBrowserNotification = (pedido) => {
     if ('Notification' in window && Notification.permission === 'granted') {
       new Notification('🚚 Novo Pedido!', {
         body: `Cliente: ${pedido.clienteNome}\nEndereço: ${pedido.endereco}`,
@@ -102,71 +102,57 @@ export default function Pedidos({ modo = "GERAL" }) {
         requireInteraction: false
       });
     }
-  };
+   };
+  
+    
 
-  async function carregarPedidos(f = filtro, silent = false) {
+   async function carregarPedidos(f = filtro, silent = false) {
     if (loadingRef.current) return;
 
     loadingRef.current = true;
     setLoading(true);
     setErro("");
-
-    try {
-      const url =
-        f && f !== "TODOS"
-          ? `/pedidos?status=${encodeURIComponent(f)}`
-          : "/pedidos";
-
-      const { data } = await api.get(url);
-
-      if (!mountedRef.current) return;
       
-      const novosPedidos = Array.isArray(data) ? data : [];
-      
-      // 🔊 NOVO: Detectar pedidos novos (apenas para ENTREGADOR e após primeira carga)
-      if (modo === "ENTREGADOR" && !isFirstLoadRef.current && !silent) {
-        const pedidosAntigos = previousPedidosRef.current;
-        
-        if (pedidosAntigos.length > 0) {
-          const idsAntigos = new Set(pedidosAntigos.map(p => p.id));
-          const pedidosRealmenteNovos = novosPedidos.filter(p => !idsAntigos.has(p.id));
+try {
+  const url =
+    f && f !== "TODOS"
+      ? `/pedidos?status=${encodeURIComponent(f)}`
+      : "/pedidos";
 
-          if (pedidosRealmenteNovos.length > 0) {
-            console.log('🔔 Novos pedidos detectados:', pedidosRealmenteNovos.length);
-            
-            // Tocar som
-            playSound();
-            
-            // Vibrar
-            vibrate();
-            
-            // Incrementar contador
-            setNewOrdersCount(prev => prev + pedidosRealmenteNovos.length);
-            
-            // Mostrar notificação do navegador
-            pedidosRealmenteNovos.forEach(pedido => {
-              showBrowserNotification(pedido);
-            });
-          }
-        }
-      }
-      
-      // Atualizar refs
-      previousPedidosRef.current = novosPedidos;
-      if (isFirstLoadRef.current) {
-        isFirstLoadRef.current = false;
-      }
-      
-      setPedidos(novosPedidos);
-    } catch (e) {
-      console.error(e);
-      if (!mountedRef.current) return;
-      setErro("Erro ao carregar pedidos. Confirme se o backend está ligado.");
-    } finally {
-      if (mountedRef.current) setLoading(false);
-      loadingRef.current = false;
+  const { data } = await api.get(url);
+  if (!mountedRef.current) return;
+
+  const novosPedidos = Array.isArray(data) ? data : [];
+
+  // detectar novos (usa snapshot antes de atualizar)
+  if (modo === "ENTREGADOR" && !isFirstLoadRef.current && !silent) {
+    const pedidosAntigos = previousPedidosRef.current || [];
+    const idsAntigos = new Set(pedidosAntigos.map((p) => p.id));
+    const pedidosRealmenteNovos = novosPedidos.filter((p) => !idsAntigos.has(p.id));
+
+    if (pedidosRealmenteNovos.length > 0) {
+      playSound();
+      vibrate();
+      setNewOrdersCount((prev) => prev + pedidosRealmenteNovos.length);
+      pedidosRealmenteNovos.forEach(showBrowserNotification);
     }
   }
+
+  previousPedidosRef.current = novosPedidos;
+  if (isFirstLoadRef.current) isFirstLoadRef.current = false;
+
+  setPedidos(novosPedidos);
+} catch (e) {
+  console.error(e);
+  if (!mountedRef.current) return;
+  setErro("Erro ao carregar pedidos. Confirme se o backend está ligado.");
+} finally {
+  loadingRef.current = false;
+  if (mountedRef.current) setLoading(false);
+}
+
+ }
+     
 
   // 🔊 NOVO: Polling automático para ENTREGADOR
   useEffect(() => {
@@ -404,7 +390,7 @@ function renderResumoFinanceiro(p, isEntregador = false) {
                       >
                         {p.status}
                       </span>{" "}
-                      — <b>{p.clienteNome}</b>
+                      — <b>{p.clientenome}</b>
                     </div>
 
                     <div className="ent-muted">{p.endereco}</div>
@@ -418,7 +404,9 @@ function renderResumoFinanceiro(p, isEntregador = false) {
                     <div className="ent-mini">Criado em: {p.criadoEm}</div>
 
                     {renderResumoFinanceiro(p, true)}
+                    
                     {renderItens(p, true)}
+
                   </div>
 
                   <div className="ent-right">
@@ -529,7 +517,7 @@ function renderResumoFinanceiro(p, isEntregador = false) {
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ minWidth: 260 }}>
-                  <strong>#{p.id}</strong> — <strong>{p.clienteNome}</strong>
+                  <strong>#{p.id}</strong> — <strong>{p.clientenome || p.clientNome || 'Cliente não informado'}</strong>
                   <div style={{ opacity: 0.8, marginTop: 4 }}>{p.endereco}</div>
                   {p.telefone ? <div style={{ opacity: 0.8 }}>📞 {p.telefone}</div> : null}
                   {p.observacao ? <div style={{ opacity: 0.8 }}>📝 {p.observacao}</div> : null}

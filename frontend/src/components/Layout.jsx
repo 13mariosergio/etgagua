@@ -24,7 +24,9 @@ function NavLinks({ user }) {
         <AppLink to="/atendente" ariaLabel="Atendente">Atendente</AppLink>
         <AppLink to="/clientes" ariaLabel="Atendente">Clientes</AppLink>
         <AppLink to="/entregador" ariaLabel="Entregador">Entregador</AppLink>
-        <AppLink to="/relatorios" ariaLabel="Relatórios">Relatórios</AppLink>
+        <AppLink to="/relatorios" ariaLabel="Relatorios">Relatorios</AppLink>
+        <AppLink to="/backup" ariaLabel="Backup">Backup</AppLink>
+                
       </>
     );
   }
@@ -34,6 +36,7 @@ function NavLinks({ user }) {
       <>
         <AppLink to="/atendente" ariaLabel="Atendente">Atendente</AppLink>
         <AppLink to="/clientes" ariaLabel="Atendente">Clientes</AppLink>
+        <AppLink to="/backup" ariaLabel="Backup">Backup</AppLink>
       </>
     );
   }

@@ -1,0 +1,54 @@
+/* =========================================
+   ADMIN PRODUTOS - CONTAINERS REDUZIDOS
+   Para uso em 100% de zoom
+   ========================================= */
+
+/* Aplica apenas nos cards de produtos na lista */
+.admin-produtos-list .produto-card {
+  padding: 4px 6px !important; /* ✅ Reduzido de 16px */
+  gap: 10px !important;
+}
+
+/* Nome do produto - menor */
+.produto-card .produto-nome {
+  font-size: 15px !important; /* ✅ Reduzido de 18px */
+  font-weight: 700 !important;
+  margin-bottom: 3px !important;
+}
+
+/* Preço - menor */
+.produto-card .produto-preco {
+  font-size: 14px !important; /* ✅ Reduzido de 16px */
+}
+
+/* Área de ações - mais compacta */
+.produto-card .produto-acoes {
+  gap: 4px !important; /* ✅ Reduzido de 10px */
+}
+
+/* Toggle ativo/inativo - menor */
+.produto-card .toggle-ativo {
+  padding: 6px 10px !important; /* ✅ Reduzido de 8px 12px */
+  font-size: 13px !important; /* ✅ Reduzido de 14px */
+}
+
+.produto-card .toggle-ativo input[type="checkbox"] {
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.produto-card .toggle-ativo span {
+  font-size: 13px !important;
+}
+
+/* Botões - menores */
+.produto-card .btn-acao {
+  padding: 3px 6px !important; /* ✅ Reduzido de 8px 16px */
+  font-size: 13px !important;
+}
+
+/* Gap da lista */
+.produtos-list-container {
+  gap: 10px !important; /* ✅ Reduzido de 12px */
+}
+

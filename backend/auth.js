@@ -45,6 +45,8 @@ async function requireAuth(req, res, next) {
   }
 }
 
+
+
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user?.role) {

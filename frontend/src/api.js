@@ -18,3 +18,22 @@ api.interceptors.request.use((config) => {
   }
   return config;
 });
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("etgagua_token");
+
+  console.log("➡️ REQUEST:", {
+    url: config.url,
+    method: config.method,
+    token,
+    headers: config.headers,
+  });
+
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+
+  return config;
+});
+

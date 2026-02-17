@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import Pedidos from "./Pedidos";
 
+
+
 function reaisToCentavos(v) {
   const n = Number(String(v).replace(",", "."));
   if (!Number.isFinite(n)) return null;

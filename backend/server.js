@@ -8,12 +8,73 @@ const { signToken, requireAuth, requireRole } = require("./auth");
 const { initDB, getDB } = require("./db-postgres.js");
 const relatoriosRoutes = require("./relatorios");
 
+
+
 const app = express();
 const PORT = process.env.PORT || 3333;
 const HOST = process.env.HOST || "0.0.0.0";
 
 app.use(cors());
 app.use(express.json());
+
+// ✅ ESSE É O CERTO — alias PATCH /pedidos/:id/status e /api/pedidos/:id/status
+function attachPedidosStatusRoutes(basePath = "") {
+  app.patch(`${basePath}/pedidos/:id/status`, requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    const { status } = req.body || {};
+    const allowed = ["ABERTO", "EM_ROTA", "ENTREGUE", "CANCELADO"];
+
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "id inválido" });
+    if (!status || !allowed.includes(status)) {
+      return res.status(400).json({ error: "status inválido", allowed });
+    }
+
+    try {
+      const db = getDB();
+      const result = await db.query(
+        `UPDATE pedidos
+         SET status = $1
+         WHERE id = $2
+         RETURNING
+           id,
+           "clienteNome",
+           telefone,
+           endereco,
+           observacao,
+           status,
+           "formaPagamento",
+           troco_para_centavos,
+           createdat,
+           entregadorid`,
+        [status, id]
+      );
+
+      if (result.rows.length === 0) return res.status(404).json({ error: "Pedido não encontrado" });
+
+      const p = result.rows[0];
+
+      return res.json({
+        id: p.id,
+        clientenome: p.clienteNome,
+        telefone: p.telefone,
+        endereco: p.endereco,
+        observacao: p.observacao,
+        status: p.status,
+        formaPagamento: p.formaPagamento,
+        troco_para_centavos: p.troco_para_centavos,
+        createdAt: p.createdat,
+        entregadorId: p.entregadorid,
+      });
+    } catch (err) {
+      console.error(`PATCH ${basePath}/pedidos/:id/status error:`, err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+}
+
+attachPedidosStatusRoutes("");      // /pedidos/:id/status
+attachPedidosStatusRoutes("/api");  // /api/pedidos/:id/status
+
 
 // Helper para converter valores em boolean
 function parseBool(value, fallback) {
@@ -32,7 +93,10 @@ function parseBool(value, fallback) {
 initDB().catch((err) => {
   console.error("Erro fatal ao inicializar DB:", err);
   process.exit(1);
+
+  
 });
+
 
 // Health check
 app.get("/", (req, res) => {
@@ -217,237 +281,258 @@ app.patch("/admin/produtos/:id", requireAuth, requireRole("ADMIN"), async (req, 
 // =========================
 // PEDIDOS (listar com itens)
 // =========================
-app.get("/pedidos", requireAuth, async (req, res) => {
-  const { status } = req.query;
+// =========================
+// PEDIDOS (listar com itens) - via VIEW public.pedidos_api
+// ✅ ESSE É O CERTO — POST /pedidos (Supabase) + itens
+app.post("/pedidos", requireAuth, async (req, res) => {
+  res.set("Cache-Control", "no-store");
 
+  const db = getDB();
+  const {
+    clienteNome,
+    telefone,
+    endereco,
+    observacao,
+    formaPagamento,
+    trocoParaCentavos,
+    itens,
+  } = req.body || {};
+
+  const fp = String(formaPagamento || "").trim().toUpperCase();
+  const allowedFP = ["DINHEIRO", "PIX", "CARTAO"];
+  if (!allowedFP.includes(fp)) {
+    return res.status(400).json({ error: "formaPagamento inválida", allowed: allowedFP });
+  }
+
+  if (!Array.isArray(itens) || itens.length === 0) {
+    return res.status(400).json({ error: "Informe ao menos 1 item." });
+  }
+
+  const trocoPara =
+    trocoParaCentavos === null || trocoParaCentavos === undefined || trocoParaCentavos === ""
+      ? null
+      : Number(trocoParaCentavos);
+
+  if (trocoPara !== null && (!Number.isFinite(trocoPara) || trocoPara < 0)) {
+    return res.status(400).json({ error: "trocoParaCentavos inválido." });
+  }
+
+  const client = await db.connect();
   try {
-    const db = getDB();
+    await client.query("BEGIN");
 
-    const pedidos = status
-      ? await db.query("SELECT * FROM pedidos WHERE status = $1 ORDER BY id DESC", [status])
-      : await db.query("SELECT * FROM pedidos ORDER BY id DESC");
+    // 1) Carrega preços atuais dos produtos
+    const ids = itens.map((i) => Number(i.produtoId)).filter((n) => Number.isInteger(n) && n > 0);
+    if (ids.length !== itens.length) {
+      return res.status(400).json({ error: "itens[].produtoId inválido." });
+    }
+      // ✅ ESSE É O CERTO — valida telefone (porque no banco é NOT NULL)
+        const telefone = String(
+        req.body?.telefone ??
+        req.body?.clienteFone ??
+        ""
+      ).trim();
 
-    if (pedidos.rows.length === 0) return res.json([]);
-
-    const ids = pedidos.rows.map((p) => p.id);
-
-    // ✅ traz itens + nome do produto
-    const itens = await db.query(
-      `
-      SELECT
-        pi.*,
-        pr.nome AS produtonome
-      FROM pedido_itens pi
-      LEFT JOIN produtos pr ON pr.id = pi.produtoid
-      WHERE pi.pedidoid = ANY($1)
-      ORDER BY pi.id ASC
-      `,
+      const rProd = await client.query(
+      `SELECT id, nome, precoCentavos
+         FROM produtos
+        WHERE id = ANY($1::int[]) AND ativo = true`,
       [ids]
     );
 
-    // Agrupar itens por pedido + calcular subtotal
-    const mapItens = new Map();
-    for (const it of itens.rows) {
-      const pedidoId = it.pedidoid;
-
-      const subtotalCentavos = Number(it.qtd || 0) * Number(it.precocentavos || 0);
-
-      if (!mapItens.has(pedidoId)) mapItens.set(pedidoId, []);
-      mapItens.get(pedidoId).push({
-        id: it.id,
-        pedidoId: it.pedidoid,
-        produtoId: it.produtoid,
-        produtoNome: it.produtonome || null,
-        qtd: it.qtd,
-        precoCentavos: it.precocentavos,
-        subtotalCentavos, // ✅ agora o front consegue mostrar o valor
-      });
+    if (rProd.rowCount !== ids.length) {
+      return res.status(400).json({ error: "Algum produto não existe ou está inativo." });
     }
 
-    // Montar pedidos + calcular total
-    const out = pedidos.rows.map((p) => {
-      const itensDoPedido = mapItens.get(p.id) || [];
-      const totalCentavos = itensDoPedido.reduce(
-        (acc, it) => acc + Number(it.subtotalCentavos || 0),
-        0
-      );
+    const byId = new Map(rProd.rows.map((p) => [Number(p.id), p]));
+
+    // 2) Monta itens com subtotal
+    const itensCalc = itens.map((i) => {
+      const produtoId = Number(i.produtoId);
+      const qtd = Number(i.qtd);
+
+      if (!Number.isFinite(qtd) || qtd <= 0) throw new Error("QTD_INVALIDA");
+
+      const p = byId.get(produtoId);
+      const precoUnitCentavos = Number(p.precocentavos ?? p.precoCentavos ?? 0);
+      const subtotalCentavos = precoUnitCentavos * qtd;
 
       return {
-        id: p.id,
-        clientenome: p.clientenome,
-        telefone: p.telefone,
-        endereco: p.endereco,
-        observacao: p.observacao,
-        status: p.status,
-        formaPagamento: p.formapagamento,
-        troco_para_centavos: p.troco_para_centavos,
-        createdAt: p.createdat,
-        criadoEm: p.createdat
-          ? new Date(p.createdat).toLocaleString("pt-BR")
-          : null,
-
-        entregadorId: p.entregadorid,
-
-        totalCentavos, // ✅ agora aparece Total no entregador/atendente
-        itens: itensDoPedido,
+        produtoId,
+        produtoNome: p.nome,
+        qtd,
+        precoUnitCentavos,
+        subtotalCentavos,
       };
     });
 
-    res.json(out);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+    const totalCentavos = itensCalc.reduce((acc, it) => acc + it.subtotalCentavos, 0);
 
-
-// =========================
-// CRIAR PEDIDO (só produtos ativos)
-// =========================
-app.post("/pedidos", requireAuth, async (req, res) => {
-  console.log('📦 POST /pedidos recebido:', req.body); 
-  const { clienteNome, telefone, endereco, observacao, itens, troco_para_centavos, formaPagamento } = req.body || {};
-
-  if (!clienteNome || !endereco) {
-    return res.status(400).json({ error: "clienteNome e endereco são obrigatórios" });
-  }
-  if (!Array.isArray(itens) || itens.length === 0) {
-    return res.status(400).json({ error: "itens é obrigatório" });
-  }
-
-  const forma = (formaPagamento || "DINHEIRO").toUpperCase();
-  if (!["DINHEIRO", "PIX", "CARTAO"].includes(forma)) {
-    return res.status(400).json({ error: "formaPagamento inválida" });
-  }
-
-  const parsedItens = itens
-    .map((i) => ({ produtoId: Number(i.produtoId), qtd: Number(i.qtd) }))
-    .filter((i) => Number.isInteger(i.produtoId) && i.produtoId > 0 && Number.isInteger(i.qtd) && i.qtd > 0);
-
-  if (parsedItens.length !== itens.length) {
-    return res.status(400).json({ error: "itens inválidos" });
-  }
-
-  try {
-    const db = getDB();
-    const ids = parsedItens.map((i) => i.produtoId);
-
-    const produtos = await db.query(
-  `SELECT id, nome, precocentavos AS "precoCentavos"
-   FROM public.produtos
-   WHERE id = ANY($1) AND ativo = true`,
-  [ids]
-);
-console.log('🔍 Produtos encontrados:', produtos.rows); // ← ADICIONE ESTA LINHA
-console.log('🔍 IDs procurados:', ids); // ← E ESTA
-
-    if (produtos.rows.length !== ids.length) {
-      return res.status(400).json({ error: "Um ou mais produtos não existem ou estão inativos" });
-    }
-
-    const mapProd = new Map(produtos.rows.map((p) => [Number(p.id), p]));
-
-    let trocoPara = troco_para_centavos === null || troco_para_centavos === undefined ? null : Number(troco_para_centavos);
-    if (forma !== "DINHEIRO") trocoPara = null;
-
-    const client = await db.connect();
-    try {
-      await client.query("BEGIN");
-
-      const pedidoResult = await client.query(
-  `INSERT INTO public.pedidos ("clienteNome", telefone, endereco, observacao, status, "formaPagamento", troco_para_centavos)
-   VALUES ($1, $2, $3, $4, 'ABERTO', $5, $6)
-   RETURNING *`,
-  [clienteNome, telefone, endereco, observacao, forma, trocoPara]
-);
-      
-      const pedidoId = pedidoResult.rows[0].id;
-
-      for (const it of parsedItens) {
-        const p = mapProd.get(it.produtoId);
-        const precoUnit = Number(p.precoCentavos);
-
-       await client.query(
-        `INSERT INTO public.pedido_itens ("pedidoId", "produtoId", "produtoNome", qtd, "precoUnitCentavos", "subtotalCentavos", precocentavos)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [pedidoId, it.produtoId, p.nome, it.qtd, precoUnit, precoUnit * it.qtd, precoUnit]
-      );
+    // 3) Troco real
+    let trocoCentavos = null;
+    if (fp === "DINHEIRO" && trocoPara !== null) {
+      if (trocoPara < totalCentavos) {
+        return res.status(400).json({ error: "trocoParaCentavos menor que o total." });
       }
-
-      await client.query("COMMIT");
-
-      const final = await db.query("SELECT * FROM public.pedidos WHERE id = $1", [pedidoId]);
-      const itensResult = await db.query("SELECT * FROM public.pedido_itens WHERE pedidoId = $1", [pedidoId]);
-
-      const outPedido = final.rows[0];
-      const outItens = itensResult.rows.map((it) => ({
-        id: it.id,
-        pedidoId: it.pedidoid,
-        produtoId: it.produtoid,
-        qtd: it.qtd,
-        precoCentavos: it.precocentavos,
-      }));
-
-      res.status(201).json({
-        id: outPedido.id,
-        clienteNome: outPedido.clientenome,
-        telefone: outPedido.telefone,
-        endereco: outPedido.endereco,
-        observacao: outPedido.observacao,
-        status: outPedido.status,
-        formaPagamento: outPedido.formapagamento,
-        troco_para_centavos: outPedido.troco_para_centavos,
-        createdAt: outPedido.createdat,
-        itens: outItens,
-      });
-    } catch (err) {
-      console.error('❌ ERRO POST /pedidos:', err);
-      await client.query("ROLLBACK");
-      throw err;
-    } finally {
-      client.release();
+      trocoCentavos = trocoPara - totalCentavos;
     }
-  } catch (err) {
-    console.error('❌ ERRO GERAL:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
 
-// =========================
-// ATUALIZAR STATUS DO PEDIDO
-// =========================
-app.patch("/pedidos/:id/status", requireAuth, async (req, res) => {
-  const id = Number(req.params.id);
-  const { status } = req.body || {};
-  const allowed = ["ABERTO", "EM_ROTA", "ENTREGUE", "CANCELADO"];
+    // 4) Insere pedido
+    // ⚠️ IMPORTANTÍSSIMO: sua VIEW usa p.createdat e p.troco_para_centavos
+  const rPedido = await client.query(
+  `INSERT INTO pedidos
+    ("clienteNome", telefone, endereco, observacao, status,
+     "formaPagamento", troco_para_centavos, createdat)
+   VALUES
+    ($1, $2, $3, $4, 'ABERTO', $5, $6, NOW())
+   RETURNING
+    id, status, "clienteNome", telefone, endereco, observacao,
+    "formaPagamento", troco_para_centavos, createdat`,
+  [
+    String(clienteNome || "").trim() || "",
+    telefone, // ✅ NUNCA null
+    String(endereco || "").trim() || "",
+    String(observacao || "").trim() || "",
+    fp,
+    fp === "DINHEIRO" ? trocoPara : null,
+  ]
+);
 
-  if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "id inválido" });
-  if (!status || !allowed.includes(status)) return res.status(400).json({ error: "status inválido", allowed });
 
-  try {
-    const db = getDB();
-    const result = await db.query(
-      "UPDATE pedidos SET status = $1 WHERE id = $2 RETURNING *",
-      [status, id]
-    );
-    if (result.rows.length === 0) return res.status(404).json({ error: "Pedido não encontrado" });
 
-    const p = result.rows[0];
-    res.json({
-      id: p.id,
-      clientenome: p.clientenome,
-      telefone: p.telefone,
-      endereco: p.endereco,
-      observacao: p.observacao,
-      status: p.status,
-      formaPagamento: p.formapagamento,
-      troco_para_centavos: p.troco_para_centavos,
-      createdAt: p.createdat,
-      entregadorId: p.entregadorid,
+    const pedido = rPedido.rows[0];
+
+    // 5) Insere itens
+    for (const it of itensCalc) {
+      await client.query(
+        `INSERT INTO pedido_itens
+          ("pedidoId", "produtoId", "produtoNome", qtd, "precoUnitCentavos", "subtotalCentavos")
+         VALUES
+          ($1, $2, $3, $4, $5, $6)`,
+        [pedido.id, it.produtoId, it.produtoNome, it.qtd, it.precoUnitCentavos, it.subtotalCentavos]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    
+
+
+    // 6) Resposta padronizada (compat com seu GET/view)
+    return res.status(201).json({
+      id: pedido.id,
+      status: pedido.status,
+      clienteNome: pedido.clienteNome,
+      telefone: pedido.telefone,
+      endereco: pedido.endereco,
+      observacao: pedido.observacao,
+      formaPagamento: pedido.formaPagamento,
+      trocoParaCentavos: pedido.troco_para_centavos,
+      totalCentavos,
+      trocoCentavos,
+      criadoEm: pedido.createdat,
+      itens: itensCalc,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    try { await client.query("ROLLBACK"); } catch {}
+    console.error("❌ POST /pedidos ERRO:", err);
+
+    if (String(err?.message) === "QTD_INVALIDA") {
+      return res.status(400).json({ error: "itens[].qtd inválida (deve ser > 0)." });
+    }
+
+    return res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
   }
 });
+
+// ✅ ESSE É O CERTO — alias para o front funcionar com /pedidos e /api/pedidos
+
+function attachPedidosRoutes(basePath = "") {
+  app.get(`${basePath}/pedidos`, requireAuth, async (req, res) => {
+    res.set("Cache-Control", "no-store");
+
+    const { status } = req.query;
+
+    try {
+      const db = getDB();
+
+      const qBase = `
+        SELECT
+          id,
+          "clienteNome",
+          telefone,
+          endereco,
+          observacao,
+          status,
+          "formaPagamento",
+          "trocoParaCentavos",
+          "totalCentavos",
+          "criadoEm",
+          itens
+        FROM public.pedidos_api
+        ${status ? "WHERE status = $1" : ""}
+        ORDER BY id DESC
+      `;
+
+      const result = status ? await db.query(qBase, [status]) : await db.query(qBase);
+
+      const out = result.rows.map((p) => {
+        const itens = Array.isArray(p.itens) ? p.itens : [];
+
+        const totalFromItens = itens.reduce((acc, it) => {
+          const sub =
+            it?.subtotalCentavos ??
+            it?.subtotal_centavos ??
+            (Number(it?.qtd || 0) * Number(it?.precoUnitCentavos ?? it?.preco_unit_centavos ?? 0));
+          return acc + Number(sub || 0);
+        }, 0);
+
+        const totalCentavos =
+          Number(p.totalCentavos || 0) > 0 ? Number(p.totalCentavos) : totalFromItens;
+
+        const forma = String(p.formaPagamento || "").toUpperCase();
+        const trocoPara =
+          p.trocoParaCentavos === null || p.trocoParaCentavos === undefined
+            ? null
+            : Number(p.trocoParaCentavos);
+
+        let trocoCentavos = null;
+        if (forma === "DINHEIRO" && trocoPara !== null) {
+          trocoCentavos = Math.max(0, trocoPara - totalCentavos);
+        }
+
+        return {
+          id: p.id,
+          clientenome: p.clienteNome,
+          telefone: p.telefone,
+          endereco: p.endereco,
+          observacao: p.observacao,
+          status: p.status,
+          formaPagamento: p.formaPagamento,
+          troco_para_centavos: trocoPara,
+          trocoParaCentavos: trocoPara,
+          totalCentavos,
+          trocoCentavos,
+          createdAt: p.criadoEm,
+          criadoEm: p.criadoEm ? new Date(p.criadoEm).toLocaleString("pt-BR") : null,
+          itens,
+        };
+      });
+
+      res.json(out);
+    } catch (err) {
+      console.error(`GET ${basePath}/pedidos error:`, err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+}
+
+// registra as duas rotas:
+attachPedidosRoutes("");      // /pedidos
+attachPedidosRoutes("/api");  // /api/pedidos
+
 
 // ===== CLIENTES =====
 // ===== CLIENTES =====
@@ -578,6 +663,208 @@ app.get("/migrate/add-ponto_referencia", requireAuth, requireRole("ADMIN"), asyn
   }
 });
 
+// =====================================================
+// ADICIONE ESTAS ROTAS NO server.js
+// =====================================================
+// Cole ANTES da linha "INICIAR SERVIDOR COM WEBSOCKET"
+
+// =========================
+// 📦 BACKUP DE DADOS
+// =========================
+
+// EXPORTAR BACKUP (Download JSON)
+app.get("/admin/backup/export", requireAuth, requireRole("ADMIN"), async (req, res) => {
+  try {
+    const db = getDB();
+    
+    // Buscar todos os dados
+    const usuarios = await db.query('SELECT id, username, role FROM public.users ORDER BY id');
+    const clientes = await db.query('SELECT * FROM public.clientes WHERE ativo = true ORDER BY id');
+    const produtos = await db.query('SELECT * FROM public.produtos ORDER BY id');
+    const pedidos = await db.query('SELECT * FROM public.pedidos ORDER BY id DESC LIMIT 1000');
+    const pedidoItens = await db.query('SELECT * FROM public.pedido_itens ORDER BY id');
+
+    const backup = {
+      metadata: {
+        version: "1.0",
+        exportDate: new Date().toISOString(),
+        exportedBy: req.user.username,
+        sistema: "ETGÁGUA"
+      },
+      data: {
+        usuarios: usuarios.rows,
+        clientes: clientes.rows,
+        produtos: produtos.rows,
+        pedidos: pedidos.rows,
+        pedidoItens: pedidoItens.rows
+      },
+      stats: {
+        totalUsuarios: usuarios.rows.length,
+        totalClientes: clientes.rows.length,
+        totalProdutos: produtos.rows.length,
+        totalPedidos: pedidos.rows.length
+      }
+    };
+
+    // Definir headers para download
+    const filename = `etgagua-backup-${new Date().toISOString().split('T')[0]}.json`;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    res.json(backup);
+    
+    console.log(`✅ Backup exportado por ${req.user.username} - ${backup.stats.totalClientes} clientes, ${backup.stats.totalProdutos} produtos`);
+  } catch (err) {
+    console.error('❌ Erro ao exportar backup:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// IMPORTAR BACKUP (Restaurar de JSON)
+app.post("/admin/backup/import", requireAuth, requireRole("ADMIN"), async (req, res) => {
+  const { backup, mode } = req.body;
+  
+  if (!backup || !backup.data) {
+    return res.status(400).json({ error: "Backup inválido" });
+  }
+
+  try {
+    const db = getDB();
+    const client = await db.connect();
+    
+    let importados = {
+      clientes: 0,
+      produtos: 0,
+      usuarios: 0
+    };
+
+    try {
+      await client.query("BEGIN");
+
+      // IMPORTAR CLIENTES (APPEND ou REPLACE)
+      if (backup.data.clientes && backup.data.clientes.length > 0) {
+        if (mode === 'replace') {
+          await client.query('DELETE FROM public.clientes');
+        }
+        
+        for (const cliente of backup.data.clientes) {
+          const existe = await client.query(
+            'SELECT id FROM public.clientes WHERE codigo = $1',
+            [cliente.codigo]
+          );
+
+          if (existe.rows.length === 0) {
+            await client.query(
+              `INSERT INTO public.clientes (codigo, nome, endereco, ponto_referencia, telefone, cpf, ativo, createdat)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               ON CONFLICT (codigo) DO NOTHING`,
+              [
+                cliente.codigo,
+                cliente.nome,
+                cliente.endereco,
+                cliente.ponto_referencia || null,
+                cliente.telefone || null,
+                cliente.cpf || null,
+                cliente.ativo !== false,
+                cliente.createdat || new Date()
+              ]
+            );
+           
+                  await client.query("BEGIN");
+
+                      const pedidoResult = await client.query(
+                `INSERT INTO public.pedidos
+                ("clienteNome", telefone, endereco, observacao, status, formapagamento, troco_para_centavos)
+                VALUES ($1, $2, $3, $4, 'ABERTO', $5, $6)
+                RETURNING *`,
+                  [
+                    clienteNome,
+                    telefone || null,
+                    endereco,
+                    observacao || null,
+                    formaPagamento,
+                    troco_para_centavos ?? null,
+                  ]
+                );
+
+
+                const pedidoId = pedidoResult.rows[0].id;
+
+
+              for (const it of parsedItens) {
+                const p = mapProd.get(it.produtoId);
+                const precoUnit = Number(p.precoCentavos);
+
+                await client.query(
+                  `INSERT INTO public.pedido_itens
+                  (pedidoid, produtoid, produtonome, qtd, precounitcentavos, precocentavos)
+                  VALUES ($1, $2, $3, $4, $5, $6)`,
+                  [pedidoId, it.produtoId, p.nome, it.qtd, precoUnit, precoUnit]
+                );
+              }
+
+            importados.clientes++;           
+
+          }
+        }
+      }
+
+      // IMPORTAR PRODUTOS (APPEND ou REPLACE)
+      if (backup.data.produtos && backup.data.produtos.length > 0) {
+        if (mode === 'replace') {
+          await client.query('DELETE FROM public.produtos');
+        }
+
+        for (const produto of backup.data.produtos) {
+          const existe = await client.query(
+            'SELECT id FROM public.produtos WHERE nome = $1',
+            [produto.nome]
+          );
+
+          if (existe.rows.length === 0 || mode === 'replace') {
+            await client.query(
+              `INSERT INTO public.produtos (nome, "precoCentavos", ativo)
+               VALUES ($1, $2, $3)
+               ON CONFLICT DO NOTHING`,
+              [
+                produto.nome,
+                produto.precoCentavos || produto.precocentavos || 0,
+                produto.ativo !== false
+              ]
+            );
+            importados.produtos++;
+          }
+        }
+      }
+
+      await client.query("COMMIT");
+
+      console.log(`✅ Backup importado por ${req.user.username} - ${importados.clientes} clientes, ${importados.produtos} produtos`);
+
+      res.json({
+        success: true,
+        message: "Backup importado com sucesso!",
+        importados
+      });
+
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+
+  } catch (err) {
+    console.error('❌ Erro ao importar backup:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// LISTAR HISTÓRICO DE BACKUPS (simulado - baseado em logs)
+app.get("/admin/backup/history", requireAuth, requireRole("ADMIN"), async (req, res) => {
+  // Por enquanto retorna vazio - pode ser implementado com tabela de logs depois
+  res.json([]);
+});
 
 
 app.listen(PORT, HOST, () => {

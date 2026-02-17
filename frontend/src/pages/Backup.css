@@ -1,0 +1,429 @@
+/* =========================================
+   BACKUP.css - OTIMIZADO PARA ZOOM 67%
+   - Espaçamentos reduzidos
+   - Título mais próximo dos cards
+   - Layout compacto e profissional
+   ========================================= */
+
+/* Página */
+.backup-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 8px 20px 20px;
+  
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  
+  align-items: start;
+  justify-items: stretch;
+}
+
+/* Header - COMPACTO */
+.backup-header {
+  grid-column: 1 / -1;
+  text-align: center;
+  margin: 0 0 8px; /* ✅ Reduzido de 12px para 8px */
+}
+
+.backup-header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 850;
+  letter-spacing: 0.3px;
+}
+
+.backup-header p {
+  margin: 6px 0 0; /* ✅ Reduzido */
+  font-size: 14px;
+  opacity: 0.85;
+  line-height: 1.3;
+}
+
+/* Linha divisória sutil */
+.backup-header::after {
+  content: "";
+  display: block;
+  width: 150px;
+  height: 1px;
+  margin: 8px auto 0; /* ✅ Reduzido */
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 255, 255, 0.22),
+    transparent
+  );
+}
+
+/* Mensagens */
+.backup-message {
+  grid-column: 1 / -1;
+  position: relative;
+  padding: 10px 14px; /* ✅ Reduzido */
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.backup-message pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.backup-message.success {
+  border-color: rgba(0, 200, 120, 0.25);
+  background: rgba(0, 200, 120, 0.08);
+  color: #4ade80;
+}
+
+.backup-message.error {
+  border-color: rgba(255, 70, 70, 0.25);
+  background: rgba(255, 70, 70, 0.08);
+  color: #f87171;
+}
+
+.btn-close {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 6px;
+  transition: opacity 0.2s;
+}
+
+.btn-close:hover {
+  opacity: 1;
+}
+
+/* Remove wrapper e usa grid direto */
+.backup-section {
+  display: contents;
+}
+
+/* Cards - COMPACTOS */
+.backup-card,
+.backup-tips {
+  width: 100%;
+  margin: 0;
+  background: rgba(10, 18, 35, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px; /* ✅ Reduzido de 16px */
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* ✅ Reduzido de 10px */
+}
+
+/* Ícone do card */
+.card-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 18px;
+  margin-bottom: 4px; /* ✅ Reduzido */
+}
+
+/* Textos dos cards */
+.backup-card h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.backup-card > p {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.86;
+  line-height: 1.35;
+}
+
+/* Caixa "O backup inclui" */
+.backup-info {
+  margin-top: 4px; /* ✅ Reduzido */
+  padding: 10px; /* ✅ Reduzido */
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.backup-info strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  opacity: 0.95;
+}
+
+.backup-info ul {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.6; /* ✅ Mais compacto */
+  font-size: 13px;
+  opacity: 0.92;
+}
+
+.backup-info li {
+  margin: 2px 0; /* ✅ Reduzido */
+}
+
+/* Import mode */
+.import-mode {
+  margin-top: 2px;
+}
+
+.mode-label {
+  display: block;
+  margin-bottom: 6px; /* ✅ Reduzido */
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.95;
+}
+
+/* Radio buttons */
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* ✅ Reduzido */
+  margin-top: 6px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+  padding: 10px; /* ✅ Reduzido */
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: all 0.2s;
+}
+
+.radio-option:hover {
+  border-color: rgba(29, 99, 255, 0.35);
+  background: rgba(29, 99, 255, 0.05);
+}
+
+.radio-option input[type="radio"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+  flex: 0 0 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.radio-option input[type="radio"]::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  transform: scale(0);
+  transition: transform 0.12s ease;
+  background: #1d63ff;
+}
+
+.radio-option input[type="radio"]:checked {
+  border-color: rgba(29, 99, 255, 0.9);
+}
+
+.radio-option input[type="radio"]:checked::before {
+  transform: scale(1);
+}
+
+.radio-option div {
+  flex: 1;
+}
+
+.radio-option strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 2px; /* ✅ Reduzido */
+}
+
+.radio-option small {
+  display: block;
+  margin-top: 2px;
+  opacity: 0.85;
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.radio-option:has(input[type="radio"]:checked) {
+  border-color: rgba(29, 99, 255, 0.55);
+  background: rgba(29, 99, 255, 0.08);
+}
+
+/* Upload de arquivo */
+.file-upload {
+  margin-top: 6px; /* ✅ Reduzido */
+  display: grid;
+  gap: 6px;
+}
+
+.file-hint {
+  font-size: 12px;
+  opacity: 0.75;
+  text-align: center;
+}
+
+/* Botões */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 14px; /* ✅ Ajustado */
+  border-radius: 10px;
+  font-weight: 850;
+  font-size: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s;
+}
+
+.btn:hover:not(:disabled):not(.disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btn:active:not(:disabled):not(.disabled) {
+  transform: translateY(0);
+}
+
+.btn:disabled,
+.btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: #1d63ff;
+  color: #fff;
+  border-color: rgba(29, 99, 255, 0.45);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #1557e6;
+  border-color: rgba(29, 99, 255, 0.65);
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.btn-secondary:hover:not(:disabled):not(.disabled) {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.20);
+}
+
+.btn-large {
+  padding: 12px 16px;
+  font-size: 14px;
+}
+
+/* Dicas */
+.backup-tips {
+  grid-column: 1 / -1;
+  margin-top: 4px; /* ✅ Reduzido */
+}
+
+.backup-tips h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.backup-tips ul {
+  margin: 6px 0 0; /* ✅ Reduzido */
+  padding-left: 18px;
+  line-height: 1.6; /* ✅ Mais compacto */
+  font-size: 13px;
+  opacity: 0.92;
+}
+
+.backup-tips li {
+  margin: 4px 0; /* ✅ Reduzido */
+}
+
+.backup-tips strong {
+  color: #60a5fa;
+}
+
+/* ✅ LAYOUT DESKTOP - Dois cards lado a lado */
+@media (min-width: 980px) {
+  .backup-page {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding-top: 6px; /* ✅ Reduzido */
+  }
+
+  /* Força exportar esquerda / importar direita */
+  .export-card {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .import-card {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .backup-tips {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .backup-message {
+    grid-row: 1;
+  }
+}
+
+/* ✅ RESPONSIVO - Mobile */
+@media (max-width: 979px) {
+  .backup-page {
+    padding: 10px;
+  }
+
+  .backup-header h1 {
+    font-size: 22px;
+  }
+
+  .backup-card {
+    padding: 12px;
+  }
+}

@@ -11,6 +11,7 @@ export default function Admin() {
 
       {/* Cadastro de produtos / águas */}
       <AdminProdutos />
+      
     </div>
   );
 }

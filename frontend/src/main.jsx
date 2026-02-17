@@ -13,6 +13,7 @@ import Atendente from "./pages/Atendente";
 import Clientes from "./pages/Clientes";
 import Entregador from "./pages/Entregador";
 import Relatorios from "./pages/Relatorios";
+import Backup from "./pages/Backup";
 
 
 import "./index.css";
@@ -33,8 +34,16 @@ ReactDOM.createRoot(document.getElementById("root")).render(
                   <Admin />
                 </RequireRole>
               }
-              
             />
+                <Route 
+                 path="/backup" 
+                 element={
+                  <RequireRole allow={["ATENDENTE", "ADMIN"]}>
+                     <Backup /> 
+                  </RequireRole>
+                 }
+             />   
+            
                <Route
                 path="/relatorios"
                 element={

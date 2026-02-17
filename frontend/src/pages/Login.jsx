@@ -47,7 +47,7 @@ export default function Login() {
       </form>
 
       <p style={{ marginTop: 12, opacity: 0.7, fontSize: 12 }}>
-        Admin inicial: <b>admin</b> / <b>admin123</b>
+        Admin inicial: <b>admin</b> / <b>123456</b>
       </p>
     </div>
   );

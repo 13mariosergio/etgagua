@@ -22,6 +22,7 @@ export function AuthProvider({ children }) {
     setToken(data.token);
     setUser(data.user);
     localStorage.setItem("etgagua_token", data.token);
+    localStorage.setItem("token", data.token); // compatibilidade
     localStorage.setItem("etgagua_user", JSON.stringify(data.user));
     api.defaults.headers.common.Authorization = `Bearer ${data.token}`;
     return data.user;
@@ -31,6 +32,7 @@ export function AuthProvider({ children }) {
     setToken("");
     setUser(null);
     localStorage.removeItem("etgagua_token");
+    localStorage.removeItem("etgagua_user");
     localStorage.removeItem("etgagua_user");
     delete api.defaults.headers.common.Authorization;
   }

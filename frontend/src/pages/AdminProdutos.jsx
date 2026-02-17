@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import "./AdminProdutos.css"; // ← ADICIONE ESTA LINHA
 
 export default function AdminProdutos() {
   const [produtos, setProdutos] = useState([]);
@@ -154,7 +155,7 @@ export default function AdminProdutos() {
       </div>
 
       {/* Lista */}
-      <div style={{ padding: 16, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12 }}>
+      <div className="admin-produtos-list" style={{ padding: 16, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <h3 style={{ margin: 0 }}>Produtos cadastrados</h3>
           <button onClick={carregar} disabled={loading} className="btn secondary">
@@ -165,7 +166,7 @@ export default function AdminProdutos() {
         {produtos.filter(p => !p.nome.startsWith('[REMOVIDO]')).length === 0 ? (
           <p style={{ opacity: 0.7 }}>Nenhum produto cadastrado.</p>
         ) : (
-          <div style={{ display: "grid", gap: 12 }}>
+          <div className="produtos-list-container" style={{ display: "grid", gap: 12 }}>
             {produtos
               .filter(p => !p.nome.startsWith('[REMOVIDO]'))
               .map((p) => {
@@ -174,6 +175,7 @@ export default function AdminProdutos() {
                 return (
                   <div
                     key={p.id}
+                    className="produto-card"
                     style={{
                       padding: 16,
                       border: "1px solid rgba(255,255,255,0.1)",
@@ -187,16 +189,16 @@ export default function AdminProdutos() {
                     }}
                   >
                     <div style={{ flex: 1, minWidth: 200 }}>
-                      <div style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 4 }}>
+                      <div className="produto-nome" style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 4 }}>
                         {p.nome}
                       </div>
-                      <div style={{ fontSize: 16, color: '#10b981' }}>
+                      <div className="produto-preco" style={{ fontSize: 16, color: '#10b981' }}>
                         R$ {(p.precocentavos / 100).toFixed(2)}
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                      <label style={{ 
+                    <div className="produto-acoes" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", width: "45%" }}>
+                      <label className="toggle-ativo" style={{ 
                         display: 'flex', 
                         alignItems: 'center', 
                         gap: 8, 
@@ -205,6 +207,7 @@ export default function AdminProdutos() {
                         borderRadius: 8,
                         backgroundColor: isAtivo ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
                         border: `2px solid ${isAtivo ? '#10b981' : '#ef4444'}`,
+                        marginRight: 'auto' // ← ADICIONE ESTA LINHA
                       }}>
                         <input
                           type="checkbox"
@@ -219,7 +222,7 @@ export default function AdminProdutos() {
 
                       <button 
                         onClick={() => abrirEdicao(p)} 
-                        className="btn"
+                        className="btn btn-acao"
                         style={{ padding: '8px 16px' }}
                       >
                         ✏️ Editar
@@ -227,7 +230,7 @@ export default function AdminProdutos() {
 
                       <button 
                         onClick={() => removerProduto(p)} 
-                        className="btn danger"
+                        className="btn danger btn-acao"
                         style={{ padding: '8px 16px' }}
                       >
                         🗑️ Remover
@@ -301,8 +304,9 @@ export default function AdminProdutos() {
                   💾 Salvar
                 </button>
                 <button type="button" onClick={fecharEdicao} className="btn secondary" style={{ flex: 1 }}>
-                  ❌ Cancelar
+                 ❌ Cancelar
                 </button>
+                                
               </div>
             </form>
           </div>

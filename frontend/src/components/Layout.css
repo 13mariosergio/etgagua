@@ -220,4 +220,8 @@ body {
   .bottom-nav .app-link:nth-child(4)::after{ content:"Relat."; }
   .bottom-nav .app-link:nth-child(4){ font-size: 0; }
   .bottom-nav .app-link:nth-child(4)::after{ font-size: 12px; }
+
+  .bottom-nav .app-link:nth-child(5)::after{ content:"Relat."; }
+  .bottom-nav .app-link:nth-child(5){ font-size: 0; }
+  .bottom-nav .app-link:nth-child(5)::after{ font-size: 12px; }
 }
