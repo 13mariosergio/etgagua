@@ -1,8 +1,13 @@
 const { Pool } = require("pg");
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  host: process.env.PGHOST,
+  user: process.env.PGUSER,
+  password: process.env.PGPASSWORD,
+  database: process.env.PGDATABASE,
+  port: process.env.PGPORT || 5432,
+  // Forçar SSL para garantir conexão com o Supabase
+  ssl: { rejectUnauthorized: false } 
 });
 
 async function initDB() {
@@ -12,7 +17,7 @@ async function initDB() {
     console.log("🔄 Iniciando banco PostgreSQL...");
 
     // =========================
-    // Tabela de usuários (PRECISA existir, pq pedidos referencia users)
+    // Tabela de usuários
     // =========================
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
@@ -23,6 +28,21 @@ async function initDB() {
       )
     `);
     console.log("✅ Tabela users criada/verificada");
+
+    // =========================
+    // Tabela de assinaturas de push
+    // =========================
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        endpoint TEXT NOT NULL UNIQUE,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log("✅ Tabela push_subscriptions criada/verificada");
 
     // =========================
     // Tabela de clientes
@@ -42,7 +62,7 @@ async function initDB() {
     `);
     console.log("✅ Tabela clientes criada/verificada");
 
-    // MIGRAÇÃO: garantir ponto_referencia (se banco antigo)
+    // MIGRAÇÃO: garantir ponto_referencia
     await client.query(`
       ALTER TABLE clientes
       ADD COLUMN IF NOT EXISTS ponto_referencia TEXT
@@ -61,7 +81,7 @@ async function initDB() {
     `);
     console.log("✅ Tabela produtos criada/verificada");
 
-    // MIGRAÇÃO: garantir ativo (se banco antigo)
+    // MIGRAÇÃO: garantir ativo
     await client.query(`
       ALTER TABLE produtos
       ADD COLUMN IF NOT EXISTS ativo BOOLEAN DEFAULT true
@@ -82,22 +102,22 @@ async function initDB() {
         observacao TEXT,
         status TEXT NOT NULL DEFAULT 'ABERTO' CHECK (status IN ('ABERTO', 'EM_ROTA', 'ENTREGUE', 'CANCELADO')),
         formaPagamento TEXT NOT NULL CHECK (formaPagamento IN ('DINHEIRO', 'PIX', 'CARTAO')),
-        troco_para_centavos INTEGER DEFAULT 0,
+        trocoParaCentavos INTEGER DEFAULT 0,
         createdAt TIMESTAMP DEFAULT NOW(),
         entregadorId INTEGER REFERENCES users(id)
       )
     `);
     console.log("✅ Tabela pedidos criada/verificada");
 
-    // ✅ MIGRAÇÃO: garantir coluna troco_para_centavos (se banco antigo)
+    // MIGRAÇÃO: garantir coluna trocoParaCentavos
     await client.query(`
       ALTER TABLE pedidos
-      ADD COLUMN IF NOT EXISTS troco_para_centavos INTEGER DEFAULT 0
+      ADD COLUMN IF NOT EXISTS trocoParaCentavos INTEGER DEFAULT 0
     `);
     await client.query(`
       UPDATE pedidos
-      SET troco_para_centavos = 0
-      WHERE troco_para_centavos IS NULL
+      SET trocoParaCentavos = 0
+      WHERE trocoParaCentavos IS NULL
     `);
 
     // =========================
@@ -113,36 +133,6 @@ async function initDB() {
       )
     `);
     console.log("✅ Tabela pedido_itens criada/verificada");
-
-    // =========================
-    // Criar usuário admin padrão
-    // =========================
-    const checkAdmin = await client.query(`SELECT 1 FROM users WHERE username = 'admin'`);
-    if (checkAdmin.rows.length === 0) {
-      const bcrypt = require("bcrypt");
-      const hash = await bcrypt.hash("admin123", 10);
-
-      await client.query(
-        `INSERT INTO users (username, passwordHash, role) VALUES ($1, $2, $3)`,
-        ["admin", hash, "ADMIN"]
-      );
-
-      console.log("✅ Usuário admin criado (admin/admin123)");
-    }
-
-    // =========================
-    // Criar produtos padrão
-    // =========================
-    const checkProdutos = await client.query(`SELECT COUNT(*) as count FROM produtos`);
-    if (parseInt(checkProdutos.rows[0].count, 10) === 0) {
-      await client.query(`
-        INSERT INTO produtos (nome, precoCentavos, ativo) VALUES
-        ('Vasilhame 20L + água', 2300, true),
-        ('Vasilhame 20L (vazio)', 3500, true),
-        ('Água 20L (troca)', 1050, true)
-      `);
-      console.log("✅ Produtos padrão criados");
-    }
 
     console.log("🎉 Banco PostgreSQL inicializado com sucesso!");
   } catch (err) {
