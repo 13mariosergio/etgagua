@@ -1,4 +1,5 @@
 import Pedidos from "./Pedidos";
+import PushNotificationManager from "../components/PushNotificationManager";
 import "./Entregador.css";
 
 export default function Entregador() {
@@ -10,6 +11,7 @@ export default function Entregador() {
       </p>
 
       <div className="ent-box">
+        <PushNotificationManager />
         <Pedidos modo="ENTREGADOR" />
       </div>
     </div>
