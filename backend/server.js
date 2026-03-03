@@ -19,7 +19,11 @@ const VAPID_PRIVATE_KEY =
   process.env.VAPID_PRIVATE_KEY ||
   "cFKGlR2c22SgpVKYyqKt1fy-bZIVhLvduA1YlaDUu_Q";
 
-webpush.setVapidDetails("mailto:contato@etgagua.com.br", VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+webpush.setVapidDetails(
+  "mailto:contato@etgagua.com.br",
+  VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY,
+);
 
 const app = express();
 const PORT = process.env.PORT || 3333;
@@ -52,8 +56,20 @@ initDB().catch((err) => {
 // --------------------
 // HEALTH
 // --------------------
-app.get("/", (req, res) => res.json({ ok: true, name: "ETGÁGUA Backend", time: new Date().toISOString() }));
-app.get("/health", (req, res) => res.json({ ok: true, name: "ETGÁGUA Backend", time: new Date().toISOString() }));
+app.get("/", (req, res) =>
+  res.json({
+    ok: true,
+    name: "ETGÁGUA Backend",
+    time: new Date().toISOString(),
+  }),
+);
+app.get("/health", (req, res) =>
+  res.json({
+    ok: true,
+    name: "ETGÁGUA Backend",
+    time: new Date().toISOString(),
+  }),
+);
 
 // Relatórios (ADMIN)
 app.use("/relatorios", requireAuth, relatoriosRoutes);
@@ -88,12 +104,17 @@ async function notifyEntregadores(pedido) {
         keys: { p256dh: sub.p256dh, auth: sub.auth },
       };
 
-      return webpush.sendNotification(pushSubscription, payload).catch(async (err) => {
-        if (err.statusCode === 404 || err.statusCode === 410) {
-          await db.query("DELETE FROM push_subscriptions WHERE endpoint = $1", [sub.endpoint]);
-        }
-        console.error("Erro ao enviar push:", err.statusCode);
-      });
+      return webpush
+        .sendNotification(pushSubscription, payload)
+        .catch(async (err) => {
+          if (err.statusCode === 404 || err.statusCode === 410) {
+            await db.query(
+              "DELETE FROM push_subscriptions WHERE endpoint = $1",
+              [sub.endpoint],
+            );
+          }
+          console.error("Erro ao enviar push:", err.statusCode);
+        });
     });
 
     await Promise.all(notifications);
@@ -116,7 +137,12 @@ app.post("/notifications/subscribe", requireAuth, async (req, res) => {
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (endpoint) DO UPDATE
        SET user_id = $1, p256dh = $3, auth = $4`,
-      [userId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth]
+      [
+        userId,
+        subscription.endpoint,
+        subscription.keys.p256dh,
+        subscription.keys.auth,
+      ],
     );
     res.status(201).json({ success: true });
   } catch (err) {
@@ -128,7 +154,9 @@ app.post("/notifications/unsubscribe", requireAuth, async (req, res) => {
   const { endpoint } = req.body;
   try {
     const db = getDB();
-    await db.query("DELETE FROM push_subscriptions WHERE endpoint = $1", [endpoint]);
+    await db.query("DELETE FROM push_subscriptions WHERE endpoint = $1", [
+      endpoint,
+    ]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -144,8 +172,10 @@ function attachPedidosStatusRoutes(basePath = "") {
     const { status } = req.body || {};
     const allowed = ["ABERTO", "EM_ROTA", "ENTREGUE", "CANCELADO"];
 
-    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "id inválido" });
-    if (!status || !allowed.includes(status)) return res.status(400).json({ error: "status inválido", allowed });
+    if (!Number.isInteger(id) || id <= 0)
+      return res.status(400).json({ error: "id inválido" });
+    if (!status || !allowed.includes(status))
+      return res.status(400).json({ error: "status inválido", allowed });
 
     try {
       const db = getDB();
@@ -167,10 +197,11 @@ function attachPedidosStatusRoutes(basePath = "") {
           createdat,
           entregadorid
         `,
-        [status, id]
+        [status, id],
       );
 
-      if (result.rows.length === 0) return res.status(404).json({ error: "Pedido não encontrado" });
+      if (result.rows.length === 0)
+        return res.status(404).json({ error: "Pedido não encontrado" });
       return res.json(result.rows[0]);
     } catch (err) {
       console.error(`PATCH ${basePath}/pedidos/:id/status error:`, err.message);
@@ -204,7 +235,10 @@ app.get("/produtos", requireAuth, async (req, res) => {
 // --------------------
 app.post("/auth/login", async (req, res) => {
   const { username, password } = req.body || {};
-  if (!username || !password) return res.status(400).json({ error: "username e password são obrigatórios" });
+  if (!username || !password)
+    return res
+      .status(400)
+      .json({ error: "username e password são obrigatórios" });
 
   try {
     const db = getDB();
@@ -213,17 +247,22 @@ app.post("/auth/login", async (req, res) => {
       `SELECT id, username, "passwordHash" AS passwordhash, role
        FROM public.users
        WHERE username = $1`,
-      [username]
+      [username],
     );
 
     const user = result.rows[0];
-    if (!user) return res.status(401).json({ error: "Usuário ou senha inválidos" });
+    if (!user)
+      return res.status(401).json({ error: "Usuário ou senha inválidos" });
 
     const ok = await bcrypt.compare(password, user.passwordhash);
-    if (!ok) return res.status(401).json({ error: "Usuário ou senha inválidos" });
+    if (!ok)
+      return res.status(401).json({ error: "Usuário ou senha inválidos" });
 
     const token = signToken(user);
-    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+    res.json({
+      token,
+      user: { id: user.id, username: user.username, role: user.role },
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -234,124 +273,169 @@ app.post("/auth/login", async (req, res) => {
 // =========================
 function attachAdminRoutes(basePath = "") {
   // ---- USERS
-  app.get(`${basePath}/admin/users`, requireAuth, requireRole("ADMIN"), async (req, res) => {
-    try {
-      const db = getDB();
-      const result = await db.query(`SELECT id, username, role FROM public.users ORDER BY id DESC`);
-      res.json(result.rows);
-    } catch (err) {
-      console.error("ADMIN USERS GET error:", err.message);
-      res.status(500).json({ error: err.message });
-    }
-  });
+  app.get(
+    `${basePath}/admin/users`,
+    requireAuth,
+    requireRole("ADMIN"),
+    async (req, res) => {
+      try {
+        const db = getDB();
+        const result = await db.query(
+          `SELECT id, username, role FROM public.users ORDER BY id DESC`,
+        );
+        res.json(result.rows);
+      } catch (err) {
+        console.error("ADMIN USERS GET error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
+    },
+  );
 
-  app.post(`${basePath}/admin/users`, requireAuth, requireRole("ADMIN"), async (req, res) => {
-    const { username, password, role } = req.body || {};
+  app.post(
+    `${basePath}/admin/users`,
+    requireAuth,
+    requireRole("ADMIN"),
+    async (req, res) => {
+      const { username, password, role } = req.body || {};
 
-    if (!username || !password || !role) {
-      return res.status(400).json({ error: "username, password e role são obrigatórios" });
-    }
-    if (!["ADMIN", "ATENDENTE", "ENTREGADOR"].includes(role)) {
-      return res.status(400).json({ error: "role inválido" });
-    }
+      if (!username || !password || !role) {
+        return res
+          .status(400)
+          .json({ error: "username, password e role são obrigatórios" });
+      }
+      if (!["ADMIN", "ATENDENTE", "ENTREGADOR"].includes(role)) {
+        return res.status(400).json({ error: "role inválido" });
+      }
 
-    try {
-      const passwordHash = await bcrypt.hash(password, 10);
-      const db = getDB();
+      try {
+        const passwordHash = await bcrypt.hash(password, 10);
+        const db = getDB();
 
-      const result = await db.query(
-        `INSERT INTO public.users (username, "passwordHash", role)
+        const result = await db.query(
+          `INSERT INTO public.users (username, "passwordHash", role)
          VALUES ($1, $2, $3)
          RETURNING id, username, role`,
-        [username, passwordHash, role]
-      );
+          [username, passwordHash, role],
+        );
 
-      res.status(201).json(result.rows[0]);
-    } catch (err) {
-      if (err.code === "23505") return res.status(409).json({ error: "username já existe" });
-      console.error("ADMIN USERS POST error:", err.message);
-      res.status(500).json({ error: err.message });
-    }
-  });
+        res.status(201).json(result.rows[0]);
+      } catch (err) {
+        if (err.code === "23505")
+          return res.status(409).json({ error: "username já existe" });
+        console.error("ADMIN USERS POST error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
+    },
+  );
 
   // ---- PRODUTOS
-  app.get(`${basePath}/admin/produtos`, requireAuth, requireRole("ADMIN"), async (req, res) => {
-    try {
-      const db = getDB();
-      const result = await db.query(`
+  app.get(
+    `${basePath}/admin/produtos`,
+    requireAuth,
+    requireRole("ADMIN"),
+    async (req, res) => {
+      try {
+        const db = getDB();
+        const result = await db.query(`
         SELECT id, nome, precocentavos AS "precoCentavos", ativo
         FROM produtos
         ORDER BY id DESC
       `);
-      res.json(result.rows);
-    } catch (err) {
-      console.error("ADMIN PRODUTOS GET error:", err.message);
-      res.status(500).json({ error: err.message });
-    }
-  });
+        res.json(result.rows);
+      } catch (err) {
+        console.error("ADMIN PRODUTOS GET error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
+    },
+  );
 
-  app.post(`${basePath}/admin/produtos`, requireAuth, requireRole("ADMIN"), async (req, res) => {
-    const { nome, precoCentavos, ativo } = req.body || {};
-    if (!nome) return res.status(400).json({ error: "nome é obrigatório" });
+  app.post(
+    `${basePath}/admin/produtos`,
+    requireAuth,
+    requireRole("ADMIN"),
+    async (req, res) => {
+      const { nome, precoCentavos, ativo } = req.body || {};
+      if (!nome) return res.status(400).json({ error: "nome é obrigatório" });
 
-    let precoFinal = Number(precoCentavos);
-    if (!Number.isFinite(precoFinal)) precoFinal = 0;
-    precoFinal = Math.round(precoFinal);
-    if (precoFinal < 0) return res.status(400).json({ error: "precoCentavos não pode ser negativo" });
+      let precoFinal = Number(precoCentavos);
+      if (!Number.isFinite(precoFinal)) precoFinal = 0;
+      precoFinal = Math.round(precoFinal);
+      if (precoFinal < 0)
+        return res
+          .status(400)
+          .json({ error: "precoCentavos não pode ser negativo" });
 
-    const ativoFinal = parseBool(ativo, true);
+      const ativoFinal = parseBool(ativo, true);
 
-    try {
-      const db = getDB();
-      const result = await db.query(
-        `INSERT INTO produtos (nome, precocentavos, ativo)
+      try {
+        const db = getDB();
+        const result = await db.query(
+          `INSERT INTO produtos (nome, precocentavos, ativo)
          VALUES ($1, $2, $3)
          RETURNING id, nome, precocentavos AS "precoCentavos", ativo`,
-        [nome, precoFinal, ativoFinal]
-      );
-      res.status(201).json(result.rows[0]);
-    } catch (err) {
-      console.error("ADMIN PRODUTOS POST error:", err.message);
-      res.status(500).json({ error: err.message });
-    }
-  });
+          [nome, precoFinal, ativoFinal],
+        );
+        res.status(201).json(result.rows[0]);
+      } catch (err) {
+        console.error("ADMIN PRODUTOS POST error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
+    },
+  );
 
-  app.patch(`${basePath}/admin/produtos/:id`, requireAuth, requireRole("ADMIN"), async (req, res) => {
-    const id = Number(req.params.id);
-    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ error: "id inválido" });
+  app.patch(
+    `${basePath}/admin/produtos/:id`,
+    requireAuth,
+    requireRole("ADMIN"),
+    async (req, res) => {
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0)
+        return res.status(400).json({ error: "id inválido" });
 
-    const { nome, precoCentavos, ativo } = req.body || {};
+      const { nome, precoCentavos, ativo } = req.body || {};
 
-    try {
-      const db = getDB();
-      const atual = await db.query(`SELECT id, nome, precocentavos, ativo FROM produtos WHERE id = $1`, [id]);
-      if (atual.rows.length === 0) return res.status(404).json({ error: "Produto não encontrado" });
+      try {
+        const db = getDB();
+        const atual = await db.query(
+          `SELECT id, nome, precocentavos, ativo FROM produtos WHERE id = $1`,
+          [id],
+        );
+        if (atual.rows.length === 0)
+          return res.status(404).json({ error: "Produto não encontrado" });
 
-      const row = atual.rows[0];
+        const row = atual.rows[0];
 
-      const nomeFinal = nome ?? row.nome;
+        const nomeFinal = nome ?? row.nome;
 
-      let precoFinal = precoCentavos === undefined ? Number(row.precocentavos) : Number(precoCentavos);
-      if (!Number.isFinite(precoFinal)) precoFinal = Number(row.precocentavos);
-      precoFinal = Math.round(precoFinal);
-      if (precoFinal < 0) return res.status(400).json({ error: "precoCentavos não pode ser negativo" });
+        let precoFinal =
+          precoCentavos === undefined
+            ? Number(row.precocentavos)
+            : Number(precoCentavos);
+        if (!Number.isFinite(precoFinal))
+          precoFinal = Number(row.precocentavos);
+        precoFinal = Math.round(precoFinal);
+        if (precoFinal < 0)
+          return res
+            .status(400)
+            .json({ error: "precoCentavos não pode ser negativo" });
 
-      const ativoFinal = parseBool(ativo, row.ativo);
+        const ativoFinal = parseBool(ativo, row.ativo);
 
-      const result = await db.query(
-        `UPDATE produtos
+        const result = await db.query(
+          `UPDATE produtos
          SET nome = $1, precocentavos = $2, ativo = $3
          WHERE id = $4
          RETURNING id, nome, precocentavos AS "precoCentavos", ativo`,
-        [nomeFinal, precoFinal, ativoFinal, id]
-      );
+          [nomeFinal, precoFinal, ativoFinal, id],
+        );
 
-      res.json(result.rows[0]);
-    } catch (err) {
-      console.error("ADMIN PRODUTOS PATCH error:", err.message);
-      res.status(500).json({ error: err.message });
-    }
-  });
+        res.json(result.rows[0]);
+      } catch (err) {
+        console.error("ADMIN PRODUTOS PATCH error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
+    },
+  );
 }
 
 attachAdminRoutes("");
@@ -363,7 +447,9 @@ attachAdminRoutes("/api");
 app.get("/clientes", requireAuth, async (req, res) => {
   try {
     const db = getDB();
-    const result = await db.query(`SELECT * FROM clientes WHERE ativo = true ORDER BY nome ASC`);
+    const result = await db.query(
+      `SELECT * FROM clientes WHERE ativo = true ORDER BY nome ASC`,
+    );
     res.json(result.rows);
   } catch (err) {
     console.error("❌ ERRO AO CARREGAR CLIENTES:", err.message);
@@ -388,7 +474,14 @@ app.post("/clientes", requireAuth, async (req, res) => {
       `INSERT INTO clientes (codigo, nome, endereco, ponto_referencia, telefone, cpf, ativo)
        VALUES ($1, $2, $3, $4, $5, $6, true)
        RETURNING *`,
-      [codigo, nome, endereco, ponto_referencia || "", telefone || "", cpf || ""]
+      [
+        codigo,
+        nome,
+        endereco,
+        ponto_referencia || "",
+        telefone || "",
+        cpf || "",
+      ],
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -412,8 +505,8 @@ app.get("/pedidos", requireAuth, async (req, res) => {
       where = `WHERE p.status = $${params.length}`;
     }
 
-    
-      const result = await db.query(`
+    const result = await db.query(
+      `
   SELECT
     p.id,
     p.status,
@@ -444,14 +537,16 @@ app.get("/pedidos", requireAuth, async (req, res) => {
   GROUP BY p.id
   ORDER BY p.createdat DESC
 `,
-   params
-);
-
-     
+      params,
+    );
 
     const formatado = result.rows.map((p) => {
       const itens = Array.isArray(p.itens) ? p.itens : [];
-      const total = itens.reduce((acc, item) => acc + (Number(item.qtd || 0) * Number(item.precoCentavos || 0)), 0);
+      const total = itens.reduce(
+        (acc, item) =>
+          acc + Number(item.qtd || 0) * Number(item.precoCentavos || 0),
+        0,
+      );
       return { ...p, totalCentavos: total };
     });
 
@@ -466,7 +561,15 @@ app.get("/pedidos", requireAuth, async (req, res) => {
 // CADASTRO DE PEDIDO
 // --------------------
 app.post("/pedidos", requireAuth, async (req, res) => {
-  const { clienteNome, telefone, endereco, observacao, formaPagamento, trocoParaCentavos, itens } = req.body || {};
+  const {
+    clienteNome,
+    telefone,
+    endereco,
+    observacao,
+    formaPagamento,
+    trocoParaCentavos,
+    itens,
+  } = req.body || {};
 
   const db = getDB();
   const client = await db.connect();
@@ -483,7 +586,14 @@ app.post("/pedidos", requireAuth, async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, 'ABERTO', NOW())
       RETURNING *
       `,
-      [clienteNome || "", telefone || "", endereco || "", observacao || "", fp, troco]
+      [
+        clienteNome || "",
+        telefone || "",
+        endereco || "",
+        observacao || "",
+        fp,
+        troco,
+      ],
     );
 
     const pedido = resPedido.rows[0];
@@ -492,32 +602,37 @@ app.post("/pedidos", requireAuth, async (req, res) => {
       const produtoId = Number(it.produtoId);
       const qtd = Number(it.qtd || 0);
 
-      const resProd = await client.query(`SELECT id, nome, precocentavos FROM produtos WHERE id = $1`, [produtoId]);
+      const resProd = await client.query(
+        `SELECT id, nome, precocentavos FROM produtos WHERE id = $1`,
+        [produtoId],
+      );
       const prod = resProd.rows[0];
       if (!prod) throw new Error(`Produto não encontrado: ${produtoId}`);
 
       const preco = Number(prod.precocentavos || 0);
       const subtotal = qtd * preco;
 
-            await client.query(
+      await client.query(
         `
            INSERT INTO pedido_itens (
            pedidoid,
            produtoid,
            "produtoNome",
            qtd,
-           precocentavos,                     
+           precocentavos,
           "subtotalCentavos"
         )
         VALUES ($1, $2, $3, $4, $5, $6)
         `,
-        [pedido.id, produtoId, prod.nome, qtd, preco, subtotal]
+        [pedido.id, produtoId, prod.nome, qtd, preco, subtotal],
       );
     }
 
     await client.query("COMMIT");
 
-    notifyEntregadores(pedido).catch((e) => console.error("Erro push:", e.message));
+    notifyEntregadores(pedido).catch((e) =>
+      console.error("Erro push:", e.message),
+    );
     res.status(201).json(pedido);
   } catch (err) {
     await client.query("ROLLBACK");
@@ -526,7 +641,50 @@ app.post("/pedidos", requireAuth, async (req, res) => {
     client.release();
   }
 });
+// --------------------
+// BACKUP
+// --------------------
+app.get(
+  "/admin/backup/export",
+  requireAuth,
+  requireRole("ADMIN"),
+  async (req, res) => {
+    try {
+      const db = getDB();
 
+      const [users, produtos, clientes, pedidos, pedidoItens] =
+        await Promise.all([
+          db.query(`SELECT id, username, role FROM public.users ORDER BY id`),
+          db.query(`SELECT * FROM produtos ORDER BY id`),
+          db.query(`SELECT * FROM clientes ORDER BY id`),
+          db.query(`SELECT * FROM pedidos ORDER BY id`),
+          db.query(`SELECT * FROM pedido_itens ORDER BY id`),
+        ]);
+
+      const backup = {
+        exportadoEm: new Date().toISOString(),
+        users: users.rows,
+        produtos: produtos.rows,
+        clientes: clientes.rows,
+        pedidos: pedidos.rows,
+        pedidoItens: pedidoItens.rows,
+      };
+
+      const json = JSON.stringify(backup, null, 2);
+      const filename = `backup-${new Date().toISOString().slice(0, 10)}.json`;
+
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${filename}"`,
+      );
+      res.send(json);
+    } catch (err) {
+      console.error("Erro ao exportar backup:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
 // --------------------
 // START
 // --------------------
